@@ -136,9 +136,8 @@ class VideoXTManager:
         if self.mm is None:
             raise RuntimeError("No mediamanager set")
         df = self.mm.load_annotations(annotation_suffix)
-        if not isinstance(df, pd.DataFrame):
-            df = pd.DataFrame(df)
-        # ensure timestamp
+        if df is None:
+            return len(0)
         if "timestamp" not in df.columns:
             raise ValueError("Annotations must contain 'timestamp' column")
         df = df.copy()
