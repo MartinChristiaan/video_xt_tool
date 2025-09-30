@@ -5,6 +5,7 @@ from threading import Lock
 import numpy as np
 import pandas as pd
 from flask import Flask, Response, jsonify, request, send_file
+from flask_cors import CORS
 from PIL import Image
 
 # Import your vset utilities (from your CodeContext)
@@ -16,6 +17,7 @@ from vset_utils.vset_select import (
 
 app = Flask(__name__)
 
+CORS(app)  # Enable CORS for all routes
 
 class VideoXTManager:
     """
@@ -25,20 +27,20 @@ class VideoXTManager:
 
     def __init__(self):
         self._lock = Lock()
-        self.mm = None  # mediamanager instance
-        self.videoset_name = None
-        self.camera = None
+        self.videoset_name = 'leusderheide_20230705'
+        self.camera = "visual_halfres/CPFS7_0310"
+        self.mm = get_mediamanager('leusderheide_20230705',"visual_halfres/CPFS7_0305")
 
         # currently loaded timeseries (pandas.DataFrame) - must contain a 'timestamp' column (unix ts)
-        self.current_df = None
-        self.current_timeseries_option = None
+        self.current_df = self.mm.load("detections/yolov8x_mscoco.csv",False)
+        self.current_timeseries_option = "detections/yolov8x_mscoco.csv"
 
         # column names selected for y and z
-        self.y_col = None
-        self.z_col = None
+        self.y_col = 'bbox_x'
+        self.z_col = "confidence"
 
         # annotations (pandas.DataFrame expected) - optional
-        self.annotations_df = None
+        self.annotations_df = self.mm.load_annotations("smallObjectsCorrected")
 
     # Videoset / camera
     def set_videoset_camera(self, videoset_name: str, camera: str):
@@ -370,6 +372,7 @@ def route_timeseries():
     This endpoint is read-only.
     """
     try:
+
         ts = video_xt.get_timeseries_xyz()
         # Use jsonify for safe JSON conversion
         return jsonify(ts)
