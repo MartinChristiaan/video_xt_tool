@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import TimeseriesPlot from './timeseries_plot';
 import { getTimeseries } from './api';
+import InteractiveImage from './InteractiveImage';
 
 export default function App() {
   const [data, setData] = useState<{ x: number[], y: number[], z: number[] }>({ x: [], y: [], z: [] });
-  const [selectedTimestamp, setSelectedTimestamp] = useState<number | null>(null);
+  const [selectedTimestamp, setSelectedTimestamp] = useState<number  >(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,14 +25,12 @@ export default function App() {
         y: result.data.Y,
         z: result.data.Z
       });
+      setSelectedTimestamp(result.data.X[0] || 0);
     }
 
     setLoading(false);
   };
 
-  const handleLoadData = () => {
-    loadTimeseriesData();
-  };
 
   // Load data on component mount
   useEffect(() => {
@@ -41,9 +40,6 @@ export default function App() {
   return (
     <div className="App">
       <div style={{ padding: '20px' }}>
-        <button onClick={handleLoadData} disabled={loading}>
-          {loading ? 'Loading...' : 'Reload Timeseries Data'}
-        </button>
         {error && (
           <div style={{ color: 'red', marginTop: '10px' }}>
             Error: {error}
@@ -61,7 +57,10 @@ export default function App() {
         )}
       </div>
       {data.x.length > 0 && (
-        <TimeseriesPlot data={data} setSelectedTimestamp={setSelectedTimestamp}/>
+        <div>
+          <InteractiveImage selectedLabel='object' timestamp={selectedTimestamp}/>
+          <TimeseriesPlot data={data} setSelectedTimestamp={setSelectedTimestamp}/>
+        </div>
       )}
     </div>
   );

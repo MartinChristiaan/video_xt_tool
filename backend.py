@@ -381,13 +381,14 @@ def route_timeseries():
         return error_response(str(e), 500)
 
 
-@app.route("/frame", methods=["GET"])
-def route_frame():
+@app.route("/frame/<timestamp>", methods=["GET"])
+def route_frame(timestamp):
     """
     Return a JPEG image for a frame nearest to the given timestamp.
     Query param: ?timestamp=<unix_timestamp>
     """
-    ts_param = request.args.get("timestamp", None)
+    ts_param = timestamp
+    print(ts_param)
     if ts_param is None:
         return error_response("Missing 'timestamp' query parameter", 400)
     try:
