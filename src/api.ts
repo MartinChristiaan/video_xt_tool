@@ -56,6 +56,11 @@ export interface LoadAnnotationsResponse {
   n_rows: number;
 }
 
+export interface FrameSizeResponse{
+  height: number;
+  width: number;
+}
+
 export interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -100,13 +105,6 @@ class ApiClient {
     return this.request<VideosetResponse>('/videosets');
   }
 
-  async setVideoset(videoset: string, camera: string): Promise<ApiResponse<SetVideosetResponse>> {
-    return this.request<SetVideosetResponse>('/set_videoset', {
-      method: 'POST',
-      body: JSON.stringify({ videoset, camera }),
-    });
-  }
-
   // Timestamps
   async getTimestamps(): Promise<ApiResponse<TimestampsResponse>> {
     return this.request<TimestampsResponse>('/timestamps');
@@ -115,13 +113,6 @@ class ApiClient {
   // Timeseries
   async getTimeseriesOptions(): Promise<ApiResponse<TimeseriesOptionsResponse>> {
     return this.request<TimeseriesOptionsResponse>('/timeseries_options');
-  }
-
-  async setTimeseries(option: string): Promise<ApiResponse<SetTimeseriesResponse>> {
-    return this.request<SetTimeseriesResponse>('/set_timeseries', {
-      method: 'POST',
-      body: JSON.stringify({ option }),
-    });
   }
 
   async getTimeseries(): Promise<ApiResponse<ApiData>> {
@@ -133,26 +124,9 @@ class ApiClient {
     return this.request<ColumnsResponse>('/columns');
   }
 
-  async setColumns(y?: string, z?: string): Promise<ApiResponse<SetColumnsResponse>> {
-    return this.request<SetColumnsResponse>('/set_columns', {
-      method: 'POST',
-      body: JSON.stringify({ y, z }),
-    });
-  }
-
-  // Frame
-  async getFrame(timestamp: number): Promise<ApiResponse<Blob>> {
-    try {
-      const response = await fetch(`${this.baseUrl}/frame?timestamp=${timestamp}`);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const blob = await response.blob();
-      return { data: blob };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      return { error: errorMessage };
-    }
+  async getFrameSize(videoset: string, camera: string, timestamp: number): Promise<ApiResponse<FrameSizeResponse>> {
+    const params = new URLSearchParams({ videoset, camera, timestamp: timestamp.toString() }).toString();
+    return this.request<FrameSizeResponse>(`/frame_size?${params}`);
   }
 
   // Detections
@@ -190,3 +164,6 @@ export const getFrame = (timestamp: number) => apiClient.getFrame(timestamp);
 export const getDetections = (timestamp: number) => apiClient.getDetections(timestamp);
 export const loadAnnotations = (suffix?: string) => apiClient.loadAnnotations(suffix);
 export const getAnnotations = () => apiClient.getAnnotations();
+export const fetchFrameSize = (videoset: string, camera: string, timestamp: number) => {
+  return apiClient.getFrameSize(videoset,camera,timestamp);
+}

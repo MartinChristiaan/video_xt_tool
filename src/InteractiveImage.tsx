@@ -1,24 +1,47 @@
-import React, { useState, useRef, MouseEvent } from 'react';
-
-interface Box {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+import React, { useState, useRef, MouseEvent, useEffect } from 'react';
+import { fetchFrameSize } from './api';
+export interface Box {
+  bbox_x: number;
+  bbox_y: number;
+  bbox_width: number;
+  bbox_height: number;
   label: string;
 }
 
 interface InteractiveImageProps {
   selectedLabel: string;
   timestamp:number;
+  videoset: string;
+  camera: string;
 }
 
-const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,timestamp }) => {
-  const [boxes, setBoxes] = useState<Box[]>([]);
+const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,timestamp,videoset,camera }) => {
+
   const [currentBox, setCurrentBox] = useState<Omit<Box, 'label'> | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [boxes, setBoxes] = useState<Box[]>([]);
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const [frameSize, setFrameSize] = useState<{width:number,height:number}>({width:0,height:0});
 
+  const load_frame_size = async () => {
+    const frame_size = await fetchFrameSize(videoset,camera,timestamp);
+    if (frame_size.data) {
+      setFrameSize({width:frame_size.data.width,height:frame_size.data.height});
+      console.log("Frame size:",frame_size.data);
+    }
+    else {
+      console.error("Error fetching frame size:",frame_size.error);
+    }
+  }
+  useEffect(() => {
+    load_frame_size();
+  },[videoset,camera,timestamp]);
+
+  let scale_factor = 1;
+  if (imageContainerRef.current) {
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    scale_factor = rect.width / frameSize.width; // Assuming original image width is 640px
+  }
   const getCoordinates = (e: MouseEvent<HTMLDivElement>): { x: number; y: number } | null => {
     if (!imageContainerRef.current) return null;
     const rect = imageContainerRef.current.getBoundingClientRect();
@@ -30,7 +53,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     if (!coords) return;
 
     setIsDrawing(true);
-    setCurrentBox({ x: coords.x, y: coords.y, width: 0, height: 0 });
+    setCurrentBox({ bbox_x: coords.x, bbox_y: coords.y, bbox_width: 0, bbox_height: 0 });
   };
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
@@ -39,13 +62,13 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     const coords = getCoordinates(e);
     if (!coords) return;
 
-    const newWidth = coords.x - currentBox.x;
-    const newHeight = coords.y - currentBox.y;
+    const newWidth = coords.x - currentBox.bbox_x;
+    const newHeight = coords.y - currentBox.bbox_y;
 
     setCurrentBox({
       ...currentBox,
-      width: newWidth,
-      height: newHeight,
+      bbox_width: newWidth,
+      bbox_height: newHeight,
     });
   };
 
@@ -54,14 +77,14 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
 
     // To ensure width and height are positive, we adjust the x and y coordinates.
     const finalBox: Box = {
-        x: currentBox.width > 0 ? currentBox.x : currentBox.x + currentBox.width,
-        y: currentBox.height > 0 ? currentBox.y : currentBox.y + currentBox.height,
-        width: Math.abs(currentBox.width),
-        height: Math.abs(currentBox.height),
+        bbox_x: currentBox.bbox_width > 0 ? currentBox.bbox_x : currentBox.bbox_x + currentBox.bbox_width,
+        bbox_y: currentBox.bbox_height > 0 ? currentBox.bbox_y : currentBox.bbox_y + currentBox.bbox_height,
+        bbox_width: Math.abs(currentBox.bbox_width),
+        bbox_height: Math.abs(currentBox.bbox_height),
         label: selectedLabel,
     };
 
-    if (finalBox.width > 0 && finalBox.height > 0) {
+    if (finalBox.bbox_width > 0 && finalBox.bbox_height > 0) {
         setBoxes([...boxes, finalBox]);
     }
 
@@ -98,7 +121,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       tabIndex={0}
     >
       <img
-        src={`http://localhost:5000/frame/${timestamp}`}
+        src={`http://localhost:5000/frame/${videoset}/${camera.replace('/','___')}/${timestamp}`}
         alt="interactive"
         style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' }}
       />
@@ -108,10 +131,10 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           style={{
             position: 'absolute',
             border: '2px solid red',
-            left: box.x,
-            top: box.y,
-            width: box.width,
-            height: box.height,
+            left: box.bbox_x*scale_factor,
+            top: box.bbox_y*scale_factor,
+            width: box.bbox_width*scale_factor,
+            height: box.bbox_height*scale_factor,
           }}
           onContextMenu={(e) => handleRemoveBox(e, index)}
         >
@@ -125,10 +148,10 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           style={{
             position: 'absolute',
             border: '2px dotted blue',
-            left: currentBox.width > 0 ? currentBox.x : currentBox.x + currentBox.width,
-            top: currentBox.height > 0 ? currentBox.y : currentBox.y + currentBox.height,
-            width: Math.abs(currentBox.width),
-            height: Math.abs(currentBox.height),
+            left: currentBox.bbox_width > 0 ? currentBox.bbox_x : currentBox.bbox_x + currentBox.bbox_width,
+            top: currentBox.bbox_height > 0 ? currentBox.bbox_y : currentBox.bbox_y + currentBox.bbox_height,
+            width: Math.abs(currentBox.bbox_width),
+            height: Math.abs(currentBox.bbox_height),
           }}
         />
       )}
