@@ -1,19 +1,59 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import Plotly from "plotly.js-dist";
+import { getTimeseriesData } from "./api";
+
 
 interface TimeseriesPlotProps {
-  data: {
-	x: number[];
-	y: number[];
-	z: number[];
-  };
   setSelectedTimestamp: (timestamp: number | null) => void;
+  videoset: string;
+  camera: string;
+  timeseriesName: string;
+  yColumn?: string;
+  zColumn?: string;
 }
 
-export default function TimeseriesPlot({ data, setSelectedTimestamp }: TimeseriesPlotProps) {
-  const plotDiv = useRef(null);
+export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,timeseriesName,yColumn,zColumn }: TimeseriesPlotProps) {
+	const plotDiv = useRef(null);
+	const [data, setData] = useState<{x: number[]; y: number[]; z: number[]}>({
+		x: [],
+		y: [],
+		z: []
+	});
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
-function drawPlot(x: number[], y: number[], z: number[]) {
+	const fetchTimeseriesData = useCallback(async () => {
+		if (!videoset || !camera || !timeseriesName) {
+			return;
+		}
+
+		setLoading(true);
+		setError(null);
+
+		try {
+			// Fetch timeseries data with optional column specifications
+			const response = await getTimeseriesData(videoset, camera, timeseriesName, yColumn, zColumn);
+
+			if (response.error) {
+				setError(response.error);
+				return;
+			}
+
+			if (response.data) {
+				setData({
+					x: response.data.x || [],
+					y: response.data.y || [],
+					z: response.data.z || []
+				});
+			}
+		} catch (err) {
+			setError(err instanceof Error ? err.message : 'Failed to fetch timeseries data');
+		} finally {
+			setLoading(false);
+		}
+	}, [videoset, camera, timeseriesName, yColumn, zColumn]);
+
+	const drawPlot = useCallback((x: number[], y: number[], z: number[]) => {
 	const base_trace= {
 		y: y,
 		x: x,
@@ -75,7 +115,7 @@ function drawPlot(x: number[], y: number[], z: number[]) {
 		});
 	  });
 	});
-  }
+  }, [setSelectedTimestamp]);
 
 //   function regeneratePlot() {
 // 	const newData = generateData();
@@ -84,19 +124,23 @@ function drawPlot(x: number[], y: number[], z: number[]) {
 // 	setCurrentX(null);
 //   }
 
-  // Initial mount
+  // Fetch data when props change
   useEffect(() => {
-	// const initialData = generateData();
-	// setData(initialData);
-	console.log('redraw plot with data:', data);
-	drawPlot(data.x, data.y,data.z);
-  }, [data]);
+	fetchTimeseriesData();
+  }, [fetchTimeseriesData]);
+
+  // Redraw plot when data changes
+  useEffect(() => {
+	if (data.x.length > 0) {
+		console.log('redraw plot with data:', data);
+		drawPlot(data.x, data.y, data.z);
+	}
+  }, [data, drawPlot]);
 
   return (
 	<div>
-	  {/* <button onClick={regeneratePlot} style={{ marginBottom: "20px" }}>
-		Regenerate Plot Values
-	  </button> */}
+	  {loading && <div>Loading timeseries data...</div>}
+	  {error && <div style={{ color: 'red' }}>Error: {error}</div>}
 	  <div ref={plotDiv} id="plot" style={{ width: "100vw", height: "100vh"}}></div>
 	</div>
   );

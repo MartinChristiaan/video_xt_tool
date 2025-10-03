@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import TimeseriesPlot from './timeseries_plot';
-import { getTimeseries, getDetections } from './api';
 import InteractiveImage from './InteractiveImage';
 import { type Box } from './InteractiveImage';
 
@@ -8,10 +7,12 @@ export default function App() {
   const [data, setData] = useState<{ x: number[], y: number[], z: number[] }>({ x: [], y: [], z: [] });
   const [selectedTimestamp, setSelectedTimestamp] = useState<number>(0);
   const [videoset, setVideoset] = useState<string>('leusderheide_20230705');
-  const [camera, setCamera] = useState<string>('visual_halfres/CPFS7_0310');
-  const [timeseriesName, setTimeseriesName] = useState<string>('detections/yolov8_mscoco.csv');
+  const [camera, setCamera] = useState<string>('visual_halfres/CPFS7_0305');
+  const [timeseriesName, setTimeseriesName] = useState<string>('detections/yolov8x_mscoco.csv');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [yColumn, setYColumn] = useState<string | undefined>('bbox_y');
+  const [zColumn, setZColumn] = useState<string | undefined>('confidence');
 
   // const loadTimeseriesData = async () => {
   //   setLoading(true);
@@ -58,30 +59,11 @@ export default function App() {
   // }, []);
 
   return (
-    <InteractiveImage selectedLabel='object' timestamp={selectedTimestamp} videoset={videoset} camera={camera} />
-    // <div className="App">
-    //   <div style={{ padding: '20px' }}>
-    //     {error && (
-    //       <div style={{ color: 'red', marginTop: '10px' }}>
-    //         Error: {error}
-    //       </div>
-    //     )}
-    //     {data.x.length === 0 && !loading && !error && (
-    //       <div style={{ marginTop: '10px' }}>
-    //         No timeseries data available. Make sure the backend is running and a videoset/timeseries is loaded.
-    //       </div>
-    //     )}
-    //     {selectedTimestamp && (
-    //       <div style={{ marginTop: '10px' }}>
-    //         Selected timestamp: {selectedTimestamp}
-    //       </div>
-    //     )}
-    //   </div>
-    //   {data.x.length > 0 && (
-    //     <div>
-    //       <TimeseriesPlot data={data} setSelectedTimestamp={setSelectedTimestamp} />
-    //     </div>
-    //   )}
-    // </div>
+    <div className="App">
+      <div>
+        <InteractiveImage selectedLabel='object' timestamp={selectedTimestamp} videoset={videoset} camera={camera} timeseriesName={timeseriesName} />
+        <TimeseriesPlot setSelectedTimestamp={setSelectedTimestamp} videoset={videoset} camera={camera} timeseriesName={timeseriesName} yColumn={yColumn} zColumn={zColumn} />
+      </div>
+    </div>
   );
 }

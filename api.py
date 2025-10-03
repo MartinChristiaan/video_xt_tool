@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 
 import cv2
@@ -17,30 +18,34 @@ CORS(app)
 class MediaManagerCache:
     def __init__(self,max_len=20):
         self.cache = {}
+        self._lock = threading.Lock()
 
     def get(self, videoset_name, camera):
         key = (videoset_name, camera)
-        if key not in self.cache:
-            self.cache[key] = get_mediamanager(videoset_name, camera)
-        if len(self.cache) > 20:
-            self.cache.pop(next(iter(self.cache))) # remove oldest entry
-        return self.cache[key]
+        with self._lock:
+            if key not in self.cache:
+                self.cache[key] = get_mediamanager(videoset_name, camera)
+            if len(self.cache) > 20:
+                self.cache.pop(next(iter(self.cache))) # remove oldest entry
+            return self.cache[key]
 
 media_manager_cache = MediaManagerCache()
 class FrameCache:
     def __init__(self, max_len=100):
         self.cache = {}
         self.max_len = max_len
+        self._lock = threading.Lock()
 
     def get(self, videoset,camera, timestamp: float):
         key = (videoset,camera, timestamp)
-        if key not in self.cache:
-            mm = media_manager_cache.get(videoset,camera)
-            frame, _ = mm.get_frame_nearest(timestamp)
-            self.cache[key] = frame
-        if len(self.cache) > self.max_len:
-            self.cache.pop(next(iter(self.cache)))  # remove oldest entry
-        return self.cache[key]
+        with self._lock:
+            if key not in self.cache:
+                mm = media_manager_cache.get(videoset,camera)
+                frame, _ = mm.get_frame_nearest(timestamp)
+                self.cache[key] = frame
+            if len(self.cache) > self.max_len:
+                self.cache.pop(next(iter(self.cache)))  # remove oldest entry
+            return self.cache[key]
 frame_cache = FrameCache()
 
 @app.route("/videosets", methods=["GET"])
@@ -96,6 +101,7 @@ def get_column_options():
 def get_frame(videoset_name,camera,timestamp):
     camera = camera.replace("___", "/")
     frame = frame_cache.get(videoset_name,camera, float(timestamp))
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     jpg_bytes = cv2.imencode(".jpg", frame)[1].tobytes()
     return (jpg_bytes, 200, {"Content-Type": "image/jpeg"})
 
@@ -108,7 +114,6 @@ def get_frame_size():
     frame = frame_cache.get(videoset_name,camera, float(timestamp))
     height, width = frame.shape[:2]
     return jsonify({"width": width, "height": height})
-
 
 @app.route("/annotations", methods=["GET"])
 def get_annotations():
@@ -133,7 +138,11 @@ def get_timeseries_at_timestamp():
     timestamp = request.args.get("timestamp", type=float)
     mm = media_manager_cache.get(videoset_name, camera)
     df = mm.load(timeseries_name)
+    if df is None:
+        mm.load(timeseries_name,True)
+    assert df is not None, f'{timeseries_name} not found for {videoset_name} {camera}'
     data = df[df["timestamp"] == timestamp].to_dict("records")
+
     return jsonify(data)
 
 @app.route("/subsets", methods=["GET"])

@@ -1,64 +1,35 @@
 const API_BASE_URL = 'http://localhost:5000';
 
-export interface ApiData {
-  X: number[];
-  Y: number[];
-  Z: number[];
+export interface TimeseriesData {
+  x: number[];
+  y?: number[];
+  z?: number[];
 }
 
 export interface VideosetResponse {
-  videosets: Record<string, string[]>;
-}
-
-export interface TimestampsResponse {
-  timestamps: number[];
-}
-
-export interface TimeseriesOptionsResponse {
-  options: string[];
-}
-
-export interface ColumnsResponse {
-  columns: string[];
-}
-
-export interface DetectionsResponse {
-  detections: Record<string, unknown> | Record<string, unknown>[];
+  [name: string]: {
+    cameras: string[];
+  };
 }
 
 export interface AnnotationsResponse {
-  X: number[];
-  Y: number[];
-  Z: number[];
+  x: number[];
+  y: number[];
+  z: number[];
 }
 
-export interface SetVideosetResponse {
-  message: string;
-  videoset: string;
-  camera: string;
-  n_timestamps: number;
-}
-
-export interface SetTimeseriesResponse {
-  message: string;
-  option: string;
-  n_rows: number;
-}
-
-export interface SetColumnsResponse {
-  message: string;
-  y: string | null;
-  z: string | null;
-}
-
-export interface LoadAnnotationsResponse {
-  message: string;
-  n_rows: number;
-}
-
-export interface FrameSizeResponse{
+export interface FrameSizeResponse {
   height: number;
   width: number;
+}
+
+export interface SubsetData {
+  [key: string]: unknown;
+}
+
+export interface SaveSubsetRequest {
+  name: string;
+  data: SubsetData[];
 }
 
 export interface ApiResponse<T> {
@@ -95,55 +66,112 @@ class ApiClient {
     }
   }
 
-  // Health check
-  async health(): Promise<ApiResponse<{ status: string }>> {
-    return this.request<{ status: string }>('/health');
-  }
-
   // Videosets
   async getVideosets(): Promise<ApiResponse<VideosetResponse>> {
     return this.request<VideosetResponse>('/videosets');
   }
 
   // Timestamps
-  async getTimestamps(): Promise<ApiResponse<TimestampsResponse>> {
-    return this.request<TimestampsResponse>('/timestamps');
+  async getTimestamps(videosetName: string, camera: string): Promise<ApiResponse<number[]>> {
+    const params = new URLSearchParams({
+      videoset_name: videosetName,
+      camera
+    });
+    return this.request<number[]>(`/timestamps?${params}`);
   }
 
-  // Timeseries
-  async getTimeseriesOptions(): Promise<ApiResponse<TimeseriesOptionsResponse>> {
-    return this.request<TimeseriesOptionsResponse>('/timeseries_options');
+  // Timeseries options
+  async getTimeseriesOptions(videosetName: string, camera: string): Promise<ApiResponse<string[]>> {
+    const params = new URLSearchParams({
+      videoset_name: videosetName,
+      camera
+    });
+    return this.request<string[]>(`/timeseries_options?${params}`);
   }
 
-  async getTimeseries(): Promise<ApiResponse<ApiData>> {
-    return this.request<ApiData>('/timeseries');
+  // Timeseries data
+  async getTimeseriesData(
+    videosetName: string,
+    camera: string,
+    timeseriesName: string,
+    yColumn?: string,
+    zColumn?: string
+  ): Promise<ApiResponse<TimeseriesData>> {
+    const params = new URLSearchParams({
+      videoset_name: videosetName,
+      camera,
+      timeseries_name: timeseriesName
+    });
+    if (yColumn) params.append('y_column', yColumn);
+    if (zColumn) params.append('z_column', zColumn);
+    return this.request<TimeseriesData>(`/timeseries_data?${params}`);
   }
 
-  // Columns
-  async getColumns(): Promise<ApiResponse<ColumnsResponse>> {
-    return this.request<ColumnsResponse>('/columns');
+  // Column options
+  async getColumnOptions(videosetName: string, camera: string, timeseriesName: string): Promise<ApiResponse<string[]>> {
+    const params = new URLSearchParams({
+      videoset_name: videosetName,
+      camera,
+      timeseries_name: timeseriesName
+    });
+    return this.request<string[]>(`/column_options?${params}`);
+  }
+
+  // Frame
+  getFrameUrl(videosetName: string, camera: string, timestamp: number): string {
+    const cameraEncoded = camera.replace(/\//g, '___');
+    return `${this.baseUrl}/frame/${videosetName}/${cameraEncoded}/${timestamp}`;
   }
 
   async getFrameSize(videoset: string, camera: string, timestamp: number): Promise<ApiResponse<FrameSizeResponse>> {
-    const params = new URLSearchParams({ videoset, camera, timestamp: timestamp.toString() }).toString();
+    const params = new URLSearchParams({
+      videoset,
+      camera,
+      timestamp: timestamp.toString()
+    });
     return this.request<FrameSizeResponse>(`/frame_size?${params}`);
   }
 
-  // Detections
-  async getDetections(timestamp: number): Promise<ApiResponse<DetectionsResponse>> {
-    return this.request<DetectionsResponse>(`/detections?timestamp=${timestamp}`);
-  }
-
   // Annotations
-  async loadAnnotations(suffix?: string): Promise<ApiResponse<LoadAnnotationsResponse>> {
-    return this.request<LoadAnnotationsResponse>('/annotations/load', {
-      method: 'POST',
-      body: JSON.stringify({ suffix }),
+  async getAnnotations(videosetName: string, camera: string, annotationSuffix: string): Promise<ApiResponse<AnnotationsResponse>> {
+    const params = new URLSearchParams({
+      videoset_name: videosetName,
+      camera,
+      annotation_suffix: annotationSuffix
     });
+    return this.request<AnnotationsResponse>(`/annotations?${params}`);
   }
 
-  async getAnnotations(): Promise<ApiResponse<AnnotationsResponse>> {
-    return this.request<AnnotationsResponse>('/annotations');
+  // Timeseries at timestamp
+  async getTimeseriesAtTimestamp(
+    videosetName: string,
+    camera: string,
+    timeseriesName: string,
+    timestamp: number
+  ): Promise<ApiResponse<Record<string, unknown>[]>> {
+    const params = new URLSearchParams({
+      videoset_name: videosetName,
+      camera,
+      timeseries_name: timeseriesName,
+      timestamp: timestamp.toString()
+    });
+    return this.request<Record<string, unknown>[]>(`/timeseries_at_timestamp?${params}`);
+  }
+
+  // Subsets
+  async getSubsets(): Promise<ApiResponse<string[]>> {
+    return this.request<string[]>('/subsets');
+  }
+
+  async getSubset(name: string): Promise<ApiResponse<SubsetData[]>> {
+    return this.request<SubsetData[]>(`/subset/${name}`);
+  }
+
+  async saveSubset(name: string, data: SubsetData[]): Promise<ApiResponse<{ success: boolean }>> {
+    return this.request<{ success: boolean }>('/subset', {
+      method: 'POST',
+      body: JSON.stringify({ name, data }),
+    });
   }
 }
 
@@ -151,19 +179,21 @@ class ApiClient {
 export const apiClient = new ApiClient();
 
 // Export individual functions for convenience (properly bound)
-export const health = () => apiClient.health();
 export const getVideosets = () => apiClient.getVideosets();
-export const setVideoset = (videoset: string, camera: string) => apiClient.setVideoset(videoset, camera);
-export const getTimestamps = () => apiClient.getTimestamps();
-export const getTimeseriesOptions = () => apiClient.getTimeseriesOptions();
-export const setTimeseries = (option: string) => apiClient.setTimeseries(option);
-export const getTimeseries = () => apiClient.getTimeseries();
-export const getColumns = () => apiClient.getColumns();
-export const setColumns = (y?: string, z?: string) => apiClient.setColumns(y, z);
-export const getFrame = (timestamp: number) => apiClient.getFrame(timestamp);
-export const getDetections = (timestamp: number) => apiClient.getDetections(timestamp);
-export const loadAnnotations = (suffix?: string) => apiClient.loadAnnotations(suffix);
-export const getAnnotations = () => apiClient.getAnnotations();
-export const fetchFrameSize = (videoset: string, camera: string, timestamp: number) => {
-  return apiClient.getFrameSize(videoset,camera,timestamp);
-}
+export const getTimestamps = (videosetName: string, camera: string) => apiClient.getTimestamps(videosetName, camera);
+export const getTimeseriesOptions = (videosetName: string, camera: string) => apiClient.getTimeseriesOptions(videosetName, camera);
+export const getTimeseriesData = (videosetName: string, camera: string, timeseriesName: string, yColumn?: string, zColumn?: string) =>
+  apiClient.getTimeseriesData(videosetName, camera, timeseriesName, yColumn, zColumn);
+export const getColumnOptions = (videosetName: string, camera: string, timeseriesName: string) =>
+  apiClient.getColumnOptions(videosetName, camera, timeseriesName);
+export const getFrameUrl = (videosetName: string, camera: string, timestamp: number) =>
+  apiClient.getFrameUrl(videosetName, camera, timestamp);
+export const fetchFrameSize = (videoset: string, camera: string, timestamp: number) =>
+  apiClient.getFrameSize(videoset, camera, timestamp);
+export const getAnnotations = (videosetName: string, camera: string, annotationSuffix: string) =>
+  apiClient.getAnnotations(videosetName, camera, annotationSuffix);
+export const getTimeseriesAtTimestamp = (videosetName: string, camera: string, timeseriesName: string, timestamp: number) =>
+  apiClient.getTimeseriesAtTimestamp(videosetName, camera, timeseriesName, timestamp);
+export const getSubsets = () => apiClient.getSubsets();
+export const getSubset = (name: string) => apiClient.getSubset(name);
+export const saveSubset = (name: string, data: SubsetData[]) => apiClient.saveSubset(name, data);
