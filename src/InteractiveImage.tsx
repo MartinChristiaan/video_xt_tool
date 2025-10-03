@@ -244,7 +244,19 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
             pointerEvents: 'none', // Make detection boxes non-interactive
           }}
         >
-          <div style={{ position: 'absolute', top: -30, left: 0, color: 'white', backgroundColor: 'green', padding: '2px' }}>
+          <div style={{
+            position: 'absolute',
+            top: -10,
+            left: -2,
+            color: 'white',
+            backgroundColor: 'green',
+            padding: '2px',
+            fontSize: '6px',
+            fontWeight: 'bold',
+            borderRadius: '2px',
+            whiteSpace: 'nowrap',
+            lineHeight: '1'
+          }}>
             {box.label}
           </div>
         </div>
@@ -263,7 +275,19 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           }}
           onContextMenu={(e) => handleRemoveBox(e, index)}
         >
-          <div style={{ position: 'absolute', top: -20, left: 0, color: 'white', backgroundColor: 'red', padding: '2px' }}>
+          <div style={{
+            position: 'absolute',
+            top: -16,
+            left: -1,
+            color: 'white',
+            backgroundColor: 'red',
+            padding: '2px 4px',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            borderRadius: '2px',
+            whiteSpace: 'nowrap',
+            lineHeight: '1'
+          }}>
             {box.label}
           </div>
         </div>
