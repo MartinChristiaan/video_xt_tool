@@ -25,6 +25,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
   const [detectionBoxes, setDetectionBoxes] = useState<Box[]>([]);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [frameSize, setFrameSize] = useState<{width:number,height:number}>({width:0,height:0});
+  const [zoom, setZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
 
   const load_frame_size = useCallback(async () => {
     const frame_size = await fetchFrameSize(videoset,camera,timestamp);
@@ -62,20 +64,51 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     }
   }, [videoset, camera, timestamp,timeseriesName]);
 
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+
+    // Don't zoom while drawing
+    if (isDrawing) return;
+
+    if (!imageContainerRef.current) return;
+
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+    const newZoom = Math.max(0.1, Math.min(5, zoom * zoomFactor));
+
+    // Calculate new pan offset to zoom towards mouse position
+    const newPanX = mouseX - (mouseX - panOffset.x) * (newZoom / zoom);
+    const newPanY = mouseY - (mouseY - panOffset.y) * (newZoom / zoom);
+
+    setZoom(newZoom);
+    setPanOffset({ x: newPanX, y: newPanY });
+  }, [zoom, panOffset, isDrawing]);
+
   useEffect(() => {
     load_frame_size();
     loadDetectionBoxes();
   },[load_frame_size, loadDetectionBoxes]);
 
+  useEffect(() => {
+    const container = imageContainerRef.current;
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      return () => container.removeEventListener('wheel', handleWheel);
+    }
+  }, [handleWheel]);
+
   let scale_factor = 1;
-  if (imageContainerRef.current) {
+  if (imageContainerRef.current && frameSize.width > 0) {
     const rect = imageContainerRef.current.getBoundingClientRect();
-    scale_factor = rect.width / frameSize.width; // Assuming original image width is 640px
+    scale_factor = rect.width / frameSize.width;
   }
   const getCoordinates = (e: MouseEvent<HTMLDivElement>): { x: number; y: number } | null => {
     if (!imageContainerRef.current) return null;
     const rect = imageContainerRef.current.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    return { x: (e.clientX - rect.left - panOffset.x) / zoom, y: (e.clientY - rect.top - panOffset.y) / zoom };
   };
 
   const handleMouseDown = (e: MouseEvent<HTMLDivElement>) => {
@@ -133,6 +166,11 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     }
   };
 
+  const handleDoubleClick = useCallback(() => {
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
+  }, []);
+
   return (
     <div
       ref={imageContainerRef}
@@ -142,19 +180,51 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
         height: '100%',
         cursor: 'crosshair',
         outline: 'none', // Remove focus outline
+        overflow: 'hidden', // Hide content that goes outside bounds when zoomed
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp} // Stop drawing if mouse leaves the container
       onKeyDown={handleKeyDown}
+      onDoubleClick={handleDoubleClick}
       tabIndex={0}
     >
-      <img
-        src={getFrameUrl(videoset, camera, timestamp)}
-        alt="interactive"
-        style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' }}
-      />
+      <div
+        style={{
+          transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+          transformOrigin: '0 0',
+          width: '100%',
+          height: '100%',
+          position: 'relative',
+        }}
+      >
+        <img
+          src={getFrameUrl(videoset, camera, timestamp)}
+          alt="interactive"
+          style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' }}
+        />
+
+        {/* Zoom indicator */}
+        {zoom !== 1 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              background: 'rgba(0, 0, 0, 0.7)',
+              color: 'white',
+              padding: '5px 10px',
+              borderRadius: '5px',
+              fontSize: '14px',
+              pointerEvents: 'none',
+              transform: `scale(${1/zoom})`, // Counter-scale to maintain constant size
+              transformOrigin: 'top right',
+            }}
+          >
+            {Math.round(zoom * 100)}%
+          </div>
+        )}
       {/* Render detection boxes from API (read-only) */}
       {detectionBoxes.map((box, index) => (
         <div
@@ -205,6 +275,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           }}
         />
       )}
+      </div>
     </div>
   );
 };
