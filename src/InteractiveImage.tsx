@@ -146,6 +146,11 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
         bbox_h: Math.abs(currentBox.bbox_h),
         label: selectedLabel,
     };
+    // Scale using the scale factor
+    finalBox.bbox_x = finalBox.bbox_x / scale_factor;
+    finalBox.bbox_y = finalBox.bbox_y / scale_factor;
+    finalBox.bbox_w = finalBox.bbox_w / scale_factor;
+    finalBox.bbox_h = finalBox.bbox_h / scale_factor;
 
     if (finalBox.bbox_w > 0 && finalBox.bbox_h > 0) {
         setBoxes([...boxes, finalBox]);
@@ -239,7 +244,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
             pointerEvents: 'none', // Make detection boxes non-interactive
           }}
         >
-          <div style={{ position: 'absolute', top: -20, left: 0, color: 'white', backgroundColor: 'green', padding: '2px' }}>
+          <div style={{ position: 'absolute', top: -30, left: 0, color: 'white', backgroundColor: 'green', padding: '2px' }}>
             {box.label}
           </div>
         </div>
