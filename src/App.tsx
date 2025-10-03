@@ -58,11 +58,19 @@ export default function App() {
   //   loadDetections();
   // }, []);
 
+  const handleTimestampChange = (timestamp: number | null) => {
+    if (timestamp !== null) {
+      setSelectedTimestamp(timestamp);
+    }
+  };
+
   return (
-    <div className="App">
-      <div>
+    <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ height: '70vh', overflow: 'hidden' }}>
         <InteractiveImage selectedLabel='object' timestamp={selectedTimestamp} videoset={videoset} camera={camera} timeseriesName={timeseriesName} />
-        <TimeseriesPlot setSelectedTimestamp={setSelectedTimestamp} videoset={videoset} camera={camera} timeseriesName={timeseriesName} yColumn={yColumn} zColumn={zColumn} />
+      </div>
+      <div style={{ height: '30vh', overflow: 'hidden' }}>
+        <TimeseriesPlot setSelectedTimestamp={handleTimestampChange} videoset={videoset} camera={camera} timeseriesName={timeseriesName} yColumn={yColumn} zColumn={zColumn} />
       </div>
     </div>
   );

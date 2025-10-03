@@ -138,10 +138,10 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
   }, [data, drawPlot]);
 
   return (
-	<div>
+	<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
 	  {loading && <div>Loading timeseries data...</div>}
 	  {error && <div style={{ color: 'red' }}>Error: {error}</div>}
-	  <div ref={plotDiv} id="plot" style={{ width: "100vw", height: "100vh"}}></div>
+	  <div ref={plotDiv} id="plot" style={{ width: "100%", height: "100%", flex: 1 }}></div>
 	</div>
   );
 }
