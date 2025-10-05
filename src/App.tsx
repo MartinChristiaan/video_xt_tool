@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TimeseriesPlot from './timeseries_plot';
 import InteractiveImage from './InteractiveImage';
+import Sidebar from './sidebar';
 import { type Box } from './InteractiveImage';
 
 export default function App() {
@@ -64,13 +65,32 @@ export default function App() {
     }
   };
 
+  const handleYColumnChange = (column: string | undefined) => {
+    setYColumn(column);
+  };
+
+  const handleZColumnChange = (column: string | undefined) => {
+    setZColumn(column);
+  };
+
   return (
-    <div className="App" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ height: '70vh', overflow: 'hidden' }}>
-        <InteractiveImage selectedLabel='object' timestamp={selectedTimestamp} videoset={videoset} camera={camera} timeseriesName={timeseriesName} />
-      </div>
-      <div style={{ height: '30vh', overflow: 'hidden' }}>
-        <TimeseriesPlot setSelectedTimestamp={handleTimestampChange} videoset={videoset} camera={camera} timeseriesName={timeseriesName} yColumn={yColumn} zColumn={zColumn} />
+    <div className="App" style={{ height: '100vh', display: 'flex' }}>
+      <Sidebar
+        videoset={videoset}
+        camera={camera}
+        timeseriesName={timeseriesName}
+        yColumn={yColumn}
+        zColumn={zColumn}
+        onYColumnChange={handleYColumnChange}
+        onZColumnChange={handleZColumnChange}
+      />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ height: '70vh', overflow: 'hidden' }}>
+          <InteractiveImage selectedLabel='object' timestamp={selectedTimestamp} videoset={videoset} camera={camera} timeseriesName={timeseriesName} />
+        </div>
+        <div style={{ height: '30vh', overflow: 'hidden' }}>
+          <TimeseriesPlot setSelectedTimestamp={handleTimestampChange} videoset={videoset} camera={camera} timeseriesName={timeseriesName} yColumn={yColumn} zColumn={zColumn} />
+        </div>
       </div>
     </div>
   );

@@ -60,7 +60,12 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 		mode: 'markers',
 		marker: {
 			size: 5,
-			color: z
+			color: z,
+			showscale: z.length > 0,
+			colorbar: z.length > 0 ? {
+				title: zColumn || 'Z Values',
+				titleside: 'right'
+			} : undefined
 		}
 	}
 
@@ -68,8 +73,19 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 	  plotDiv.current,
 	  [
 		base_trace
-
 	  ],
+	  {
+		xaxis: {
+		  title: 'Timestamp',
+		  showgrid: true
+		},
+		yaxis: {
+		  title: yColumn || 'Y Values',
+		  showgrid: true
+		},
+		margin: { t: 40, r: 40, b: 60, l: 60 },
+		showlegend: false
+	  }
 	);
 
 	// Hover event
@@ -115,7 +131,7 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 		});
 	  });
 	});
-  }, [setSelectedTimestamp]);
+  }, [setSelectedTimestamp, yColumn, zColumn]);
 
 //   function regeneratePlot() {
 // 	const newData = generateData();

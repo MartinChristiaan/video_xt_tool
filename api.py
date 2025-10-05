@@ -7,6 +7,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from vset_utils.vset_select import (
+    get_annotation_options,
     get_mediamanager,
     get_timeseries_options,
     get_videosets,
@@ -171,6 +172,23 @@ def save_subset():
     subset_path = Path("subsets") / f"{name}.csv"
     df.to_csv(subset_path, index=False)
     return jsonify({"success": True})
+
+@app.route("/annotations/options/<videoset>/<camera>", methods=["GET"])
+def annotation_options(videoset, camera):
+    camera =camera.replace("___", "/")
+    mm = media_manager_cache.get(videoset, camera)
+    options = get_annotation_options(mm)
+    options = [x.stem for x in options if not 'tmp' in str(x) and not 'old' in str(x)]
+    parsed_options = []
+    for option in options:
+        if len(option.split('_')) > 2:
+            suffix= option.split('_')[1]
+        else:
+            suffix=None
+        parsed_options.append(suffix)
+
+    # print(f"Annotation options for {videoset} {camera}: {options}")
+    return jsonify(parsed_options)
 
 if __name__ == "__main__":
     app.run(debug=True)
