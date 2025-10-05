@@ -20,6 +20,7 @@ interface SidebarProps {
   subsetCount: number;
   onSubsetIndexChange: (index: number) => void;
   currentSequence: Sequence;
+  allSequences: Sequence[];
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -38,7 +39,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   subsetIndex,
   subsetCount,
   onSubsetIndexChange,
-  currentSequence
+  currentSequence,
+  allSequences
 }) => {
   const [columns, setColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,6 +75,36 @@ const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     loadColumns();
   }, [loadColumns]);
+
+  // Add keyboard shortcuts for sequence navigation
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Only handle if not typing in an input field
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) {
+        return;
+      }
+
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          // Shift+S: Previous sequence
+          if (subsetIndex > 0) {
+            onSubsetIndexChange(subsetIndex - 1);
+          }
+        } else {
+          // S: Next sequence
+          if (subsetIndex < subsetCount - 1) {
+            onSubsetIndexChange(subsetIndex + 1);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [subsetIndex, subsetCount, onSubsetIndexChange]);
 
   return (
     <div className="sidebar">
@@ -129,6 +161,26 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
               →
             </button>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">
+            Select Sequence:
+          </label>
+          <select
+            value={subsetIndex}
+            onChange={(e) => onSubsetIndexChange(parseInt(e.target.value))}
+            className="form-select"
+          >
+            {allSequences.map((sequence, index) => (
+              <option key={index} value={index}>
+                {`${index + 1}: ${sequence.videoset}/${sequence.camera}`}
+              </option>
+            ))}
+          </select>
+          <div className="info-item" style={{ marginTop: '8px', fontSize: '11px', opacity: '0.7' }}>
+            Keyboard shortcuts: S (next) | Shift+S (previous)
           </div>
         </div>
 

@@ -203,6 +203,7 @@ export default function App() {
         subsetCount={subset.length}
         onSubsetIndexChange={handleSubsetIndexChange}
         currentSequence={currentSequence}
+        allSequences={subset}
       />
       <div className="content">
         <div className="image-container">
