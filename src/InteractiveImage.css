@@ -92,3 +92,54 @@
   box-sizing: border-box;
   pointer-events: none;
 }
+
+/* Annotation boxes from annotation API */
+.interactive-image-annotation-box {
+  position: absolute;
+  border: 2px solid purple;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.interactive-image-annotation-box-label {
+  position: absolute;
+  top: -12px;
+  left: -2px;
+  color: #ffffff;
+  background: purple;
+  padding: 2px;
+  font-size: 7px;
+  font-weight: bold;
+  border-radius: 2px;
+  white-space: nowrap;
+  line-height: 1;
+  font-family: inherit;
+}
+
+/* Annotation points */
+.interactive-image-annotation-point {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: orange;
+  border: 2px solid darkorange;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.interactive-image-annotation-label {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffffff;
+  background: orange;
+  padding: 1px 3px;
+  font-size: 8px;
+  font-weight: bold;
+  border-radius: 2px;
+  white-space: nowrap;
+  line-height: 1;
+  font-family: inherit;
+}

@@ -10,9 +10,11 @@ interface TimeseriesPlotProps {
   timeseriesName: string;
   yColumn?: string;
   zColumn?: string;
+  annotations?: { x: number[]; y: number[]; z: number[] } | null;
+  showAnnotations?: boolean;
 }
 
-export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,timeseriesName,yColumn,zColumn }: TimeseriesPlotProps) {
+export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,timeseriesName,yColumn,zColumn,annotations,showAnnotations }: TimeseriesPlotProps) {
 	const plotDiv = useRef(null);
 	const [data, setData] = useState<{x: number[]; y: number[]; z: number[]}>({
 		x: [],
@@ -66,14 +68,36 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 				title: zColumn || 'Z Values',
 				titleside: 'right'
 			} : undefined
-		}
+		},
+		name: 'Data'
+	}
+
+	// Create traces array with base trace
+	const traces: Partial<Plotly.PlotData>[] = [base_trace];
+
+	// Add annotation trace if annotations exist and should be shown
+	if (annotations && showAnnotations && annotations.x.length > 0) {
+		const annotation_trace = {
+			y: annotations.y,
+			x: annotations.x,
+			mode: 'markers',
+			marker: {
+				size: 8,
+				color: 'red',
+				symbol: 'x',
+				line: {
+					color: 'darkred',
+					width: 2
+				}
+			},
+			name: 'Annotations'
+		};
+		traces.push(annotation_trace);
 	}
 
 	Plotly.newPlot(
 	  plotDiv.current,
-	  [
-		base_trace
-	  ],
+	  traces,
 	  {
 		xaxis: {
 		  title: 'Timestamp',
@@ -84,7 +108,7 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 		  showgrid: true
 		},
 		margin: { t: 40, r: 40, b: 60, l: 60 },
-		showlegend: false
+		showlegend: annotations && showAnnotations && annotations.x.length > 0
 	  }
 	);
 
@@ -131,7 +155,7 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 		});
 	  });
 	});
-  }, [setSelectedTimestamp, yColumn, zColumn]);
+  }, [setSelectedTimestamp, yColumn, zColumn, annotations, showAnnotations]);
 
 //   function regeneratePlot() {
 // 	const newData = generateData();

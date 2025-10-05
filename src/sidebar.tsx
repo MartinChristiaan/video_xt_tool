@@ -21,6 +21,9 @@ interface SidebarProps {
   onSubsetIndexChange: (index: number) => void;
   currentSequence: Sequence;
   allSequences: Sequence[];
+  // Annotation-related props
+  showAnnotations: boolean;
+  onShowAnnotationsChange: (show: boolean) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -40,7 +43,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   subsetCount,
   onSubsetIndexChange,
   currentSequence,
-  allSequences
+  allSequences,
+  showAnnotations,
+  onShowAnnotationsChange
 }) => {
   const [columns, setColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -218,6 +223,20 @@ const Sidebar: React.FC<SidebarProps> = ({
             ))
           )}
         </select>
+      </div>
+
+      <h3>Annotations</h3>
+
+      <div className="form-group">
+        <label className="form-label">
+          <input
+            type="checkbox"
+            checked={showAnnotations}
+            onChange={(e) => onShowAnnotationsChange(e.target.checked)}
+            style={{ marginRight: '8px' }}
+          />
+          Show Annotations
+        </label>
       </div>
 
       <h3>Plot Configuration</h3>

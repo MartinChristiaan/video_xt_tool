@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { MouseEvent } from 'react';
-import { fetchFrameSize, getTimeseriesAtTimestamp, getFrameUrl } from './api';
+import { fetchFrameSize, getTimeseriesAtTimestamp, getFrameUrl, getAnnotationAtTimestamp } from './api';
 import './InteractiveImage.css';
 export interface Box {
   bbox_x: number;
@@ -16,14 +16,18 @@ interface InteractiveImageProps {
   videoset: string;
   camera: string;
   timeseriesName: string;
+  annotations?: { x: number[]; y: number[]; z: number[] } | null;
+  showAnnotations?: boolean;
+  annotationSuffix?: string;
 }
 
-const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,timestamp,videoset,camera,timeseriesName }) => {
+const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,timestamp,videoset,camera,timeseriesName,annotations,showAnnotations,annotationSuffix }) => {
 
   const [currentBox, setCurrentBox] = useState<Omit<Box, 'label'> | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [detectionBoxes, setDetectionBoxes] = useState<Box[]>([]);
+  const [annotationBoxes, setAnnotationBoxes] = useState<Box[]>([]);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [frameSize, setFrameSize] = useState<{width:number,height:number}>({width:0,height:0});
   const [zoom, setZoom] = useState(1);
@@ -65,6 +69,34 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     }
   }, [videoset, camera, timestamp,timeseriesName]);
 
+  const loadAnnotationBoxes = useCallback(async () => {
+    if (!annotationSuffix || !showAnnotations) {
+      setAnnotationBoxes([]);
+      return;
+    }
+
+    try {
+      const annotationData = await getAnnotationAtTimestamp(videoset, camera, annotationSuffix, timestamp);
+      if (annotationData.data && annotationData.data.length > 0) {
+        // Convert the annotation data to Box format
+        const boxes: Box[] = annotationData.data.map((annotation: Record<string, unknown>, index: number) => ({
+          bbox_x: (annotation.bbox_x as number) || 0,
+          bbox_y: (annotation.bbox_y as number) || 0,
+          bbox_w: (annotation.bbox_w as number) || 10,
+          bbox_h: (annotation.bbox_h as number) || 10,
+          label: (annotation.label as string) || `Ann${index + 1}`,
+        }));
+        setAnnotationBoxes(boxes);
+        console.log("Loaded annotation boxes:", boxes);
+      } else {
+        setAnnotationBoxes([]);
+      }
+    } catch (error) {
+      console.error("Error loading annotation boxes:", error);
+      setAnnotationBoxes([]);
+    }
+  }, [videoset, camera, annotationSuffix, timestamp, showAnnotations]);
+
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
 
@@ -91,7 +123,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
   useEffect(() => {
     load_frame_size();
     loadDetectionBoxes();
-  },[load_frame_size, loadDetectionBoxes]);
+    loadAnnotationBoxes();
+  },[load_frame_size, loadDetectionBoxes, loadAnnotationBoxes]);
 
   useEffect(() => {
     const container = imageContainerRef.current;
@@ -242,6 +275,41 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           </div>
         </div>
       ))}
+
+      {/* Render annotation boxes from API (read-only) */}
+      {annotationBoxes.map((box, index) => (
+        <div
+          key={`annotation-box-${index}`}
+          className="interactive-image-annotation-box"
+          style={{
+            left: box.bbox_x * scale_factor + x_offset,
+            top: box.bbox_y * scale_factor + y_offset,
+            width: box.bbox_w * scale_factor,
+            height: box.bbox_h * scale_factor,
+          }}
+        >
+          <div className="interactive-image-annotation-box-label">
+            {box.label}
+          </div>
+        </div>
+      ))}
+
+      {/* Render annotation points from API (read-only) */}
+      {annotations && showAnnotations && annotations.x.map((x, index) => (
+        <div
+          key={`annotation-${index}`}
+          className="interactive-image-annotation-point"
+          style={{
+            left: x * scale_factor + x_offset - 4, // Center the point (8px diameter / 2)
+            top: annotations.y[index] * scale_factor + y_offset - 4,
+          }}
+        >
+          <div className="interactive-image-annotation-label">
+            {`A${index + 1}`}
+          </div>
+        </div>
+      ))}
+
       {/* Render manually drawn boxes (interactive) */}
       {boxes.map((box, index) => (
         <div

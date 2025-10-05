@@ -136,13 +136,32 @@ class ApiClient {
   }
 
   // Annotations
-  async getAnnotations(videosetName: string, camera: string, annotationSuffix: string): Promise<ApiResponse<AnnotationsResponse>> {
+  async getAnnotations(videosetName: string, camera: string, annotationSuffix: string, yColumn?: string): Promise<ApiResponse<AnnotationsResponse>> {
     const params = new URLSearchParams({
       videoset_name: videosetName,
       camera,
       annotation_suffix: annotationSuffix
     });
+    if (yColumn) params.append('y_column', yColumn);
     return this.request<AnnotationsResponse>(`/annotations?${params}`);
+  }
+
+  // Annotation at timestamp
+  async getAnnotationAtTimestamp(
+    videosetName: string,
+    camera: string,
+    annotationSuffix: string,
+    timestamp: number,
+    yColumn?: string
+  ): Promise<ApiResponse<Record<string, unknown>[]>> {
+    const params = new URLSearchParams({
+      videoset_name: videosetName,
+      camera,
+      annotation_suffix: annotationSuffix,
+      timestamp: timestamp.toString()
+    });
+    if (yColumn) params.append('y_column', yColumn);
+    return this.request<Record<string, unknown>[]>(`/annotation_at_timestamp?${params}`);
   }
 
   // Timeseries at timestamp
@@ -193,8 +212,10 @@ export const getFrameUrl = (videosetName: string, camera: string, timestamp: num
   apiClient.getFrameUrl(videosetName, camera, timestamp);
 export const fetchFrameSize = (videoset: string, camera: string, timestamp: number) =>
   apiClient.getFrameSize(videoset, camera, timestamp);
-export const getAnnotations = (videosetName: string, camera: string, annotationSuffix: string) =>
-  apiClient.getAnnotations(videosetName, camera, annotationSuffix);
+export const getAnnotations = (videosetName: string, camera: string, annotationSuffix: string, yColumn?: string) =>
+  apiClient.getAnnotations(videosetName, camera, annotationSuffix, yColumn);
+export const getAnnotationAtTimestamp = (videosetName: string, camera: string, annotationSuffix: string, timestamp: number, yColumn?: string) =>
+  apiClient.getAnnotationAtTimestamp(videosetName, camera, annotationSuffix, timestamp, yColumn);
 export const getTimeseriesAtTimestamp = (videosetName: string, camera: string, timeseriesName: string, timestamp: number) =>
   apiClient.getTimeseriesAtTimestamp(videosetName, camera, timeseriesName, timestamp);
 export const getSubsets = () => apiClient.getSubsets();

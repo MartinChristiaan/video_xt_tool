@@ -121,14 +121,39 @@ def get_annotations():
     videoset_name = request.args.get("videoset_name")
     camera = request.args.get("camera")
     annotation_suffix = request.args.get("annotation_suffix")
+    y_column = request.args.get("y_column", "bbox_y")  # Default to bbox_y if not specified
     mm = media_manager_cache.get(videoset_name, camera)
     df = mm.load_annotations(annotation_suffix)
-    # Assuming annotations have 'x', 'y', 'z' columns
+
     data = {
         "x": df["timestamp"].tolist(),
-        "y": df["y"].tolist(), # Replace with actual column names if different
-        "z": df["z"].tolist(), # Replace with actual column names if different
+        "y": df[y_column].tolist() if y_column in df.columns else [],
     }
+    # Add z column if bbox_x exists (for completeness)
+    if "bbox_x" in df.columns:
+        data["z"] = df["bbox_x"].tolist()
+
+    return jsonify(data)
+
+@app.route("/annotation_at_timestamp", methods=["GET"])
+def get_annotation_at_timestamp():
+    videoset_name = request.args.get("videoset_name")
+    camera = request.args.get("camera")
+    annotation_suffix = request.args.get("annotation_suffix")
+    timestamp = request.args.get("timestamp", type=float)
+    y_column = request.args.get("y_column", "bbox_y")
+
+    mm = media_manager_cache.get(videoset_name, camera)
+    df = mm.load_annotations(annotation_suffix)
+
+    # Filter by timestamp
+    filtered_df = df[df["timestamp"] == timestamp]
+
+    if filtered_df.empty:
+        return jsonify([])
+
+    # Convert to records format similar to timeseries_at_timestamp
+    data = filtered_df.to_dict("records")
     return jsonify(data)
 
 @app.route("/timeseries_at_timestamp", methods=["GET"])

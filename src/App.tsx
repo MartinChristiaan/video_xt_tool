@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import TimeseriesPlot from './timeseries_plot';
 import InteractiveImage from './InteractiveImage';
 import Sidebar from './sidebar';
-import { getSubsets, getSubset, getTimeseriesOptions, type Sequence } from './api';
+import { getSubsets, getSubset, getTimeseriesOptions, getAnnotations, getAnnotationAtTimestamp, type Sequence, type AnnotationsResponse } from './api';
 import './App.css';
 
 
@@ -20,6 +20,10 @@ export default function App() {
   const [availableTimeseries, setAvailableTimeseries] = useState<string[]>([]);
   const [yColumn, setYColumn] = useState<string | undefined>('bbox_y');
   const [zColumn, setZColumn] = useState<string | undefined>('confidence');
+
+  // Annotation state
+  const [annotations, setAnnotations] = useState<AnnotationsResponse | null>(null);
+  const [showAnnotations, setShowAnnotations] = useState<boolean>(true);
 
   // Load available subsets on component mount
   useEffect(() => {
@@ -88,13 +92,31 @@ export default function App() {
     }
   }, [timeseriesName]);
 
-  // Load timeseries when subset changes
+  // Load annotations for the current sequence
+  const loadAnnotations = useCallback(async (videoset: string, camera: string, annotationSuffix: string) => {
+    try {
+      const response = await getAnnotations(videoset, camera, annotationSuffix);
+      if (response.error) {
+        console.error('Error loading annotations:', response.error);
+        setAnnotations(null);
+      } else if (response.data) {
+        setAnnotations(response.data);
+        console.log('Loaded annotations:', response.data);
+      }
+    } catch (err) {
+      console.error('Failed to load annotations:', err);
+      setAnnotations(null);
+    }
+  }, []);
+
+  // Load timeseries and annotations when subset changes
   useEffect(() => {
     if (subset && subset.length > 0) {
       const currentSequence = subset[subsetIndex];
       loadTimeseries(currentSequence.videoset, currentSequence.camera);
+      loadAnnotations(currentSequence.videoset, currentSequence.camera, currentSequence.annotation_suffix);
     }
-  }, [subset, subsetIndex, loadTimeseries]);
+  }, [subset, subsetIndex, loadTimeseries, loadAnnotations]);
 
   // Load a specific subset
   const loadSubset = async (name: string) => {
@@ -146,6 +168,10 @@ export default function App() {
 
   const handleTimeseriesChange = (newTimeseriesName: string) => {
     setTimeseriesName(newTimeseriesName);
+  };
+
+  const handleShowAnnotationsChange = (show: boolean) => {
+    setShowAnnotations(show);
   };
 
   // Show loading state
@@ -204,6 +230,9 @@ export default function App() {
         onSubsetIndexChange={handleSubsetIndexChange}
         currentSequence={currentSequence}
         allSequences={subset}
+        // Annotation-related props
+        showAnnotations={showAnnotations}
+        onShowAnnotationsChange={handleShowAnnotationsChange}
       />
       <div className="content">
         <div className="image-container">
@@ -213,6 +242,9 @@ export default function App() {
             videoset={videoset}
             camera={camera}
             timeseriesName={timeseriesName}
+            annotations={annotations}
+            showAnnotations={showAnnotations}
+            annotationSuffix={currentSequence.annotation_suffix}
           />
         </div>
         <div className="timeseries-container">
@@ -223,6 +255,8 @@ export default function App() {
             timeseriesName={timeseriesName}
             yColumn={yColumn}
             zColumn={zColumn}
+            annotations={annotations}
+            showAnnotations={showAnnotations}
           />
         </div>
       </div>
