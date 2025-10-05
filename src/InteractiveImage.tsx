@@ -77,7 +77,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     const mouseY = e.clientY - rect.top;
 
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.max(0.1, Math.min(5, zoom * zoomFactor));
+    const newZoom = Math.max(1, Math.min(5, zoom * zoomFactor));
 
     // Calculate new pan offset to zoom towards mouse position
     const newPanX = mouseX - (mouseX - panOffset.x) * (newZoom / zoom);

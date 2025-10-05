@@ -3,6 +3,7 @@ import TimeseriesPlot from './timeseries_plot';
 import InteractiveImage from './InteractiveImage';
 import Sidebar from './sidebar';
 import { getSubsets, getSubset, type Sequence } from './api';
+import './App.css';
 
 
 
@@ -114,14 +115,7 @@ export default function App() {
   // Show loading state
   if (loading) {
     return (
-      <div className="App" style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '18px',
-        color: '#666'
-      }}>
+      <div className="app loading">
         Loading subset...
       </div>
     );
@@ -130,20 +124,9 @@ export default function App() {
   // Show error state
   if (error) {
     return (
-      <div className="App" style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        fontSize: '18px',
-        color: '#d32f2f'
-      }}>
+      <div className="app error">
         <div>Error: {error}</div>
-        <button
-          onClick={() => window.location.reload()}
-          style={{ marginTop: '10px', padding: '8px 16px' }}
-        >
+        <button onClick={() => window.location.reload()}>
           Reload
         </button>
       </div>
@@ -153,14 +136,7 @@ export default function App() {
   // Show empty state if no subset is loaded
   if (!subset || subset.length === 0) {
     return (
-      <div className="App" style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '18px',
-        color: '#666'
-      }}>
+      <div className="app empty">
         No sequences found in subset
       </div>
     );
@@ -172,7 +148,7 @@ export default function App() {
   const camera = currentSequence.camera;
 
   return (
-    <div className="App" style={{ height: '100vh', display: 'flex' }}>
+    <div className="app">
       <Sidebar
         videoset={videoset}
         camera={camera}
@@ -190,8 +166,8 @@ export default function App() {
         onSubsetIndexChange={handleSubsetIndexChange}
         currentSequence={currentSequence}
       />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ height: '70vh', overflow: 'hidden' }}>
+      <div className="content">
+        <div className="image-container">
           <InteractiveImage
             selectedLabel='object'
             timestamp={selectedTimestamp}
@@ -200,7 +176,7 @@ export default function App() {
             timeseriesName={timeseriesName}
           />
         </div>
-        <div style={{ height: '30vh', overflow: 'hidden' }}>
+        <div className="timeseries-container">
           <TimeseriesPlot
             setSelectedTimestamp={handleTimestampChange}
             videoset={videoset}
