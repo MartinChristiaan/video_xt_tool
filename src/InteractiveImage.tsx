@@ -100,15 +100,35 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     }
   }, [handleWheel]);
 
+  // Calculate scale factor based on the actual image display size
   let scale_factor = 1;
-  if (imageContainerRef.current && frameSize.width > 0) {
+  let x_offset = 0;
+  let y_offset = 0;
+  if (imageContainerRef.current && frameSize.width > 0 && frameSize.height > 0) {
     const rect = imageContainerRef.current.getBoundingClientRect();
-    scale_factor = rect.width / frameSize.width;
+    const imageAspectRatio = frameSize.width / frameSize.height;
+    const containerAspectRatio = rect.width / rect.height;
+
+    if (containerAspectRatio > imageAspectRatio) {
+      // Container is wider than image - image is constrained by height
+      scale_factor = rect.height / frameSize.height;
+    } else {
+      // Container is taller than image - image is constrained by width
+      scale_factor = rect.width / frameSize.width;
+    }
+    // Calculate offsets to center the image
+    x_offset = (rect.width - frameSize.width * scale_factor) / 2;
+    y_offset = (rect.height - frameSize.height * scale_factor) / 2;
   }
+
   const getCoordinates = (e: MouseEvent<HTMLDivElement>): { x: number; y: number } | null => {
     if (!imageContainerRef.current) return null;
     const rect = imageContainerRef.current.getBoundingClientRect();
-    return { x: (e.clientX - rect.left - panOffset.x) / zoom, y: (e.clientY - rect.top - panOffset.y) / zoom };
+    // Get coordinates relative to the transformed div (which contains the image and boxes)
+    const transformedX = (e.clientX - rect.left - panOffset.x) / zoom;
+    const transformedY = (e.clientY - rect.top - panOffset.y) / zoom;
+    // Convert from display coordinates to frame coordinates
+    return { x: transformedX / scale_factor, y: transformedY / scale_factor };
   };
 
   const handleMouseDown = (e: MouseEvent<HTMLDivElement>) => {
@@ -146,13 +166,10 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
         bbox_h: Math.abs(currentBox.bbox_h),
         label: selectedLabel,
     };
-    // Scale using the scale factor
-    finalBox.bbox_x = finalBox.bbox_x / scale_factor;
-    finalBox.bbox_y = finalBox.bbox_y / scale_factor;
-    finalBox.bbox_w = finalBox.bbox_w / scale_factor;
-    finalBox.bbox_h = finalBox.bbox_h / scale_factor;
+    // Note: coordinates are already in frame coordinate system from getCoordinates()
+    // No additional scaling needed since getCoordinates() already handles scale_factor
 
-    if (finalBox.bbox_w > 0 && finalBox.bbox_h > 0) {
+    if (finalBox.bbox_w > 5 && finalBox.bbox_h > 5) { // Minimum size check
         setBoxes([...boxes, finalBox]);
     }
 
@@ -178,12 +195,10 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
 
   return (
     <div
-      ref={imageContainerRef}
       style={{
         position: 'relative',
         width: '100%',
         height: '100%',
-        cursor: 'crosshair',
         outline: 'none', // Remove focus outline
         overflow: 'hidden', // Hide content that goes outside bounds when zoomed
       }}
@@ -194,6 +209,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       onKeyDown={handleKeyDown}
       onDoubleClick={handleDoubleClick}
       tabIndex={0}
+      ref={imageContainerRef}
     >
       <div
         style={{
@@ -237,10 +253,10 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           style={{
             position: 'absolute',
             border: '2px solid green',
-            left: box.bbox_x*scale_factor,
-            top: box.bbox_y*scale_factor,
-            width: box.bbox_w*scale_factor,
-            height: box.bbox_h*scale_factor,
+            left: box.bbox_x * scale_factor + x_offset,
+            top: box.bbox_y * scale_factor + y_offset,
+            width: box.bbox_w * scale_factor,
+            height: box.bbox_h * scale_factor,
             pointerEvents: 'none', // Make detection boxes non-interactive
           }}
         >
@@ -268,10 +284,10 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           style={{
             position: 'absolute',
             border: '2px solid red',
-            left: box.bbox_x*scale_factor,
-            top: box.bbox_y*scale_factor,
-            width: box.bbox_w*scale_factor,
-            height: box.bbox_h*scale_factor,
+            left: box.bbox_x * scale_factor,
+            top: box.bbox_y * scale_factor,
+            width: box.bbox_w * scale_factor,
+            height: box.bbox_h * scale_factor,
           }}
           onContextMenu={(e) => handleRemoveBox(e, index)}
         >
@@ -297,10 +313,10 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           style={{
             position: 'absolute',
             border: '2px dotted blue',
-            left: currentBox.bbox_w > 0 ? currentBox.bbox_x : currentBox.bbox_x + currentBox.bbox_w,
-            top: currentBox.bbox_h > 0 ? currentBox.bbox_y : currentBox.bbox_y + currentBox.bbox_h,
-            width: Math.abs(currentBox.bbox_w),
-            height: Math.abs(currentBox.bbox_h),
+            left: (currentBox.bbox_w > 0 ? currentBox.bbox_x : currentBox.bbox_x + currentBox.bbox_w) * scale_factor,
+            top: (currentBox.bbox_h > 0 ? currentBox.bbox_y : currentBox.bbox_y + currentBox.bbox_h) * scale_factor,
+            width: Math.abs(currentBox.bbox_w) * scale_factor,
+            height: Math.abs(currentBox.bbox_h) * scale_factor,
           }}
         />
       )}
