@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getColumnOptions } from './api';
+import { getColumnOptions, type Sequence } from './api';
 
 interface SidebarProps {
   videoset: string;
@@ -9,6 +9,14 @@ interface SidebarProps {
   zColumn?: string;
   onYColumnChange: (column: string | undefined) => void;
   onZColumnChange: (column: string | undefined) => void;
+  // Subset-related props
+  subsetName: string;
+  availableSubsets: string[];
+  onSubsetChange: (subsetName: string) => void;
+  subsetIndex: number;
+  subsetCount: number;
+  onSubsetIndexChange: (index: number) => void;
+  currentSequence: Sequence;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -18,7 +26,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   yColumn,
   zColumn,
   onYColumnChange,
-  onZColumnChange
+  onZColumnChange,
+  subsetName,
+  availableSubsets,
+  onSubsetChange,
+  subsetIndex,
+  subsetCount,
+  onSubsetIndexChange,
+  currentSequence
 }) => {
   const [columns, setColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +79,121 @@ const Sidebar: React.FC<SidebarProps> = ({
       boxSizing: 'border-box',
       overflowY: 'auto'
     }}>
+      {/* Subset Selection */}
+      <div style={{ marginBottom: '30px' }}>
+        <h3 style={{ marginTop: 0, marginBottom: '20px', fontSize: '16px' }}>Subset Selection</h3>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{
+            display: 'block',
+            marginBottom: '8px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: '#fff'
+          }}>
+            Current Subset:
+          </label>
+          <select
+            value={subsetName}
+            onChange={(e) => onSubsetChange(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '8px',
+              borderRadius: '4px',
+              border: '1px solid #ccc',
+              fontSize: '14px'
+            }}
+          >
+            {availableSubsets.map((subset) => (
+              <option key={subset} value={subset}>
+                {subset}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{
+            display: 'block',
+            marginBottom: '8px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: '#fff'
+          }}>
+            Sequence ({subsetIndex + 1} of {subsetCount}):
+          </label>
+          <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+            <button
+              onClick={() => onSubsetIndexChange(subsetIndex - 1)}
+              disabled={subsetIndex <= 0}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '4px',
+                border: '1px solid #ccc',
+                background: subsetIndex <= 0 ? '#f5f5f5' : '#fff',
+                cursor: subsetIndex <= 0 ? 'not-allowed' : 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              ←
+            </button>
+            <input
+              type="number"
+              min="1"
+              max={subsetCount}
+              value={subsetIndex + 1}
+              onChange={(e) => {
+                const newIndex = parseInt(e.target.value) - 1;
+                if (!isNaN(newIndex)) {
+                  onSubsetIndexChange(newIndex);
+                }
+              }}
+              style={{
+                width: '60px',
+                padding: '6px',
+                borderRadius: '4px',
+                border: '1px solid #ccc',
+                textAlign: 'center',
+                fontSize: '12px'
+              }}
+            />
+            <button
+              onClick={() => onSubsetIndexChange(subsetIndex + 1)}
+              disabled={subsetIndex >= subsetCount - 1}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '4px',
+                border: '1px solid #ccc',
+                background: subsetIndex >= subsetCount - 1 ? '#f5f5f5' : '#fff',
+                cursor: subsetIndex >= subsetCount - 1 ? 'not-allowed' : 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              →
+            </button>
+          </div>
+        </div>
+
+        <div style={{
+          padding: '10px',
+          backgroundColor: '#1a1a1a',
+          borderRadius: '4px',
+          border: '1px solid #333'
+        }}>
+          <div style={{ fontSize: '12px', color: '#ccc', lineHeight: '1.4' }}>
+            <p style={{ margin: '2px 0' }}>
+              <strong style={{ color: '#fff' }}>Videoset:</strong> {currentSequence.videoset}
+            </p>
+            <p style={{ margin: '2px 0' }}>
+              <strong style={{ color: '#fff' }}>Camera:</strong> {currentSequence.camera}
+            </p>
+            <p style={{ margin: '2px 0' }}>
+              <strong style={{ color: '#fff' }}>Annotation:</strong> {currentSequence.annotation_suffix}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <h3 style={{ marginTop: 0, marginBottom: '20px', fontSize: '16px' }}>Plot Configuration</h3>
 
       {loading && <div style={{ fontSize: '14px', color: '#666' }}>Loading columns...</div>}

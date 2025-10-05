@@ -1,0 +1,4 @@
+videoset,camera,annotation_suffix
+leusderheide_20230705,visual_halfres/CPFS7_0305,yolov8x_mscoco
+leusderheide_20230705,visual_halfres/CPFS7_0306,yolov8x_mscoco
+leusderheide_20230705,visual_halfres/CPFS7_0307,yolov8x_mscoco

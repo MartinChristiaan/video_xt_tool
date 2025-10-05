@@ -2,62 +2,100 @@ import React, { useState, useEffect } from 'react';
 import TimeseriesPlot from './timeseries_plot';
 import InteractiveImage from './InteractiveImage';
 import Sidebar from './sidebar';
-import { type Box } from './InteractiveImage';
+import { getSubsets, getSubset, type Sequence } from './api';
+
+
 
 export default function App() {
-  const [data, setData] = useState<{ x: number[], y: number[], z: number[] }>({ x: [], y: [], z: [] });
   const [selectedTimestamp, setSelectedTimestamp] = useState<number>(0);
-  const [videoset, setVideoset] = useState<string>('leusderheide_20230705');
-  const [camera, setCamera] = useState<string>('visual_halfres/CPFS7_0305');
-  const [timeseriesName, setTimeseriesName] = useState<string>('detections/yolov8x_mscoco.csv');
-  const [loading, setLoading] = useState(false);
+  const [subsetName, setSubsetName] = useState<string>('Leusderheide');
+  const [subset, setSubset] = useState<Sequence[] | null>(null);
+  const [subsetIndex, setSubsetIndex] = useState<number>(0);
+  const [availableSubsets, setAvailableSubsets] = useState<string[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [timeseriesName, setTimeseriesName] = useState<string>('detections/yolov8x_mscoco.csv');
   const [yColumn, setYColumn] = useState<string | undefined>('bbox_y');
   const [zColumn, setZColumn] = useState<string | undefined>('confidence');
 
-  // const loadTimeseriesData = async () => {
-  //   setLoading(true);
-  //   setError(null);
+  // Load available subsets on component mount
+  useEffect(() => {
+    const loadSubsets = async () => {
+      try {
+        setLoading(true);
+        const response = await getSubsets();
+        if (response.error) {
+          setError(response.error);
+        } else if (response.data) {
+          setAvailableSubsets(response.data);
+          // Load the default subset if it exists
+          if (response.data.includes(subsetName)) {
+            const subsetResponse = await getSubset(subsetName);
+            if (subsetResponse.error) {
+              setError(subsetResponse.error);
+            } else if (subsetResponse.data) {
+              setSubset(subsetResponse.data);
+              setSubsetIndex(0);
+              setError(null);
+            }
+          } else if (response.data.length > 0) {
+            // Load the first available subset
+            const firstSubset = response.data[0];
+            setSubsetName(firstSubset);
+            const subsetResponse = await getSubset(firstSubset);
+            if (subsetResponse.error) {
+              setError(subsetResponse.error);
+            } else if (subsetResponse.data) {
+              setSubset(subsetResponse.data);
+              setSubsetIndex(0);
+              setError(null);
+            }
+          }
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load subsets');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  //   const result = await getTimeseries();
+    loadSubsets();
+  }, [subsetName]);
 
-  //   if (result.error) {
-  //     setError(result.error);
-  //     console.error('Error loading timeseries data:', result.error);
-  //   } else if (result.data) {
-  //     // Convert API format (X, Y, Z) to component format (x, y, z)
-  //     setData({
-  //       x: result.data.X,
-  //       y: result.data.Y,
-  //       z: result.data.Z
-  //     });
-  //     setSelectedTimestamp(result.data.X[0] || 0);
-  //   }
+  // Load a specific subset
+  const loadSubset = async (name: string) => {
+    try {
+      setLoading(true);
+      const response = await getSubset(name);
+      if (response.error) {
+        setError(response.error);
+      } else if (response.data) {
+        setSubset(response.data);
+        setSubsetIndex(0); // Reset to first sequence
+        setError(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load subset');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  //   setLoading(false);
-  // };
+  // Handle subset name change
+  const handleSubsetChange = async (newSubsetName: string) => {
+    if (newSubsetName !== subsetName) {
+      setSubsetName(newSubsetName);
+      await loadSubset(newSubsetName);
+    }
+  };
 
-  // const loadDetections = async () => {
-  //   const result = await getDetections(selectedTimestamp);
-  //   if (result.error) {
-  //     console.error('Error loading detections:', result.error);
-  //   } else if (result.data) {
-  //     console.log('Detections loaded:', result.data);
-  //     setDetections(result.data.detections as Box[]);
-  //   }
-  // }
-
-  // useEffect(() => {
-  //   loadDetections();
-  // }, [selectedTimestamp]);
-
-
-
-  // // Load data on component mount
-  // useEffect(() => {
-  //   loadTimeseriesData();
-  //   loadDetections();
-  // }, []);
+  // Handle subset index change
+  const handleSubsetIndexChange = (newIndex: number) => {
+    if (subset && newIndex >= 0 && newIndex < subset.length) {
+      setSubsetIndex(newIndex);
+    }
+  };
 
   const handleTimestampChange = (timestamp: number | null) => {
     if (timestamp !== null) {
@@ -73,6 +111,66 @@ export default function App() {
     setZColumn(column);
   };
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="App" style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        Loading subset...
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="App" style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        fontSize: '18px',
+        color: '#d32f2f'
+      }}>
+        <div>Error: {error}</div>
+        <button
+          onClick={() => window.location.reload()}
+          style={{ marginTop: '10px', padding: '8px 16px' }}
+        >
+          Reload
+        </button>
+      </div>
+    );
+  }
+
+  // Show empty state if no subset is loaded
+  if (!subset || subset.length === 0) {
+    return (
+      <div className="App" style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '18px',
+        color: '#666'
+      }}>
+        No sequences found in subset
+      </div>
+    );
+  }
+
+  // Get current sequence
+  const currentSequence = subset[subsetIndex];
+  const videoset = currentSequence.videoset;
+  const camera = currentSequence.camera;
+
   return (
     <div className="App" style={{ height: '100vh', display: 'flex' }}>
       <Sidebar
@@ -83,13 +181,34 @@ export default function App() {
         zColumn={zColumn}
         onYColumnChange={handleYColumnChange}
         onZColumnChange={handleZColumnChange}
+        // Subset-related props
+        subsetName={subsetName}
+        availableSubsets={availableSubsets}
+        onSubsetChange={handleSubsetChange}
+        subsetIndex={subsetIndex}
+        subsetCount={subset.length}
+        onSubsetIndexChange={handleSubsetIndexChange}
+        currentSequence={currentSequence}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ height: '70vh', overflow: 'hidden' }}>
-          <InteractiveImage selectedLabel='object' timestamp={selectedTimestamp} videoset={videoset} camera={camera} timeseriesName={timeseriesName} />
+          <InteractiveImage
+            selectedLabel='object'
+            timestamp={selectedTimestamp}
+            videoset={videoset}
+            camera={camera}
+            timeseriesName={timeseriesName}
+          />
         </div>
         <div style={{ height: '30vh', overflow: 'hidden' }}>
-          <TimeseriesPlot setSelectedTimestamp={handleTimestampChange} videoset={videoset} camera={camera} timeseriesName={timeseriesName} yColumn={yColumn} zColumn={zColumn} />
+          <TimeseriesPlot
+            setSelectedTimestamp={handleTimestampChange}
+            videoset={videoset}
+            camera={camera}
+            timeseriesName={timeseriesName}
+            yColumn={yColumn}
+            zColumn={zColumn}
+          />
         </div>
       </div>
     </div>
