@@ -12,6 +12,12 @@ export interface VideosetResponse {
   };
 }
 
+export interface Sequence {
+  videoset: string;
+  camera: string;
+  annotation_suffix: string;
+}
+
 export interface AnnotationsResponse {
   x: number[];
   y: number[];
@@ -23,13 +29,10 @@ export interface FrameSizeResponse {
   width: number;
 }
 
-export interface SubsetData {
-  [key: string]: unknown;
-}
 
 export interface SaveSubsetRequest {
   name: string;
-  data: SubsetData[];
+  data: Sequence[];
 }
 
 export interface ApiResponse<T> {
@@ -163,11 +166,11 @@ class ApiClient {
     return this.request<string[]>('/subsets');
   }
 
-  async getSubset(name: string): Promise<ApiResponse<SubsetData[]>> {
-    return this.request<SubsetData[]>(`/subset/${name}`);
+  async getSubset(name: string): Promise<ApiResponse<Sequence[]>> {
+    return this.request<Sequence[]>(`/subset/${name}`);
   }
 
-  async saveSubset(name: string, data: SubsetData[]): Promise<ApiResponse<{ success: boolean }>> {
+  async saveSubset(name: string, data: Sequence[]): Promise<ApiResponse<{ success: boolean }>> {
     return this.request<{ success: boolean }>('/subset', {
       method: 'POST',
       body: JSON.stringify({ name, data }),
@@ -196,4 +199,4 @@ export const getTimeseriesAtTimestamp = (videosetName: string, camera: string, t
   apiClient.getTimeseriesAtTimestamp(videosetName, camera, timeseriesName, timestamp);
 export const getSubsets = () => apiClient.getSubsets();
 export const getSubset = (name: string) => apiClient.getSubset(name);
-export const saveSubset = (name: string, data: SubsetData[]) => apiClient.saveSubset(name, data);
+export const saveSubset = (name: string, data: Sequence[]) => apiClient.saveSubset(name, data);
