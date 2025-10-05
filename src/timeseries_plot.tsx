@@ -62,11 +62,30 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 		mode: 'markers',
 		marker: {
 			size: 5,
-			color: z,
+			color: z.length > 0 ? z : '#2563eb',
 			showscale: z.length > 0,
 			colorbar: z.length > 0 ? {
-				title: zColumn || 'Z Values',
-				titleside: 'right'
+				title: {
+				  text: zColumn || 'Z Values',
+				  font: {
+					color: '#f8fafc',
+					size: 12
+				  }
+				},
+				titleside: 'right',
+				tickfont: {
+				  color: '#cbd5e1',
+				  size: 10
+				},
+				bgcolor: 'rgba(30, 41, 59, 0.8)',
+				bordercolor: '#475569',
+				borderwidth: 1,
+				outlinecolor: '#475569',
+				outlinewidth: 1
+			} : undefined,
+			line: z.length === 0 ? {
+				color: '#1e40af',
+				width: 1
 			} : undefined
 		},
 		name: 'Data'
@@ -83,10 +102,10 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 			mode: 'markers',
 			marker: {
 				size: 8,
-				color: 'red',
+				color: '#f59e0b',
 				symbol: 'x',
 				line: {
-					color: 'darkred',
+					color: '#d97706',
 					width: 2
 				}
 			},
@@ -100,15 +119,62 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 	  traces,
 	  {
 		xaxis: {
-		  title: 'Timestamp',
-		  showgrid: true
+		  title: {
+			text: 'Timestamp',
+			font: {
+			  color: '#f8fafc',
+			  size: 14
+			}
+		  },
+		  showgrid: true,
+		  gridcolor: '#334155',
+		  tickfont: {
+			color: '#cbd5e1',
+			size: 12
+		  },
+		  linecolor: '#475569',
+		  zerolinecolor: '#475569'
 		},
 		yaxis: {
-		  title: yColumn || 'Y Values',
-		  showgrid: true
+		  title: {
+			text: yColumn || 'Y Values',
+			font: {
+			  color: '#f8fafc',
+			  size: 14
+			}
+		  },
+		  showgrid: true,
+		  gridcolor: '#334155',
+		  tickfont: {
+			color: '#cbd5e1',
+			size: 12
+		  },
+		  linecolor: '#475569',
+		  zerolinecolor: '#475569'
 		},
-		margin: { t: 40, r: 40, b: 60, l: 60 },
-		showlegend: annotations && showAnnotations && annotations.x.length > 0
+		plot_bgcolor: '#1e293b',
+		paper_bgcolor: '#0f172a',
+		margin: { t: 50, r: 60, b: 70, l: 80 },
+		showlegend: annotations && showAnnotations && annotations.x.length > 0,
+		legend: {
+		  font: {
+			color: '#f8fafc',
+			size: 12
+		  },
+		  bgcolor: 'rgba(30, 41, 59, 0.8)',
+		  bordercolor: '#475569',
+		  borderwidth: 1
+		},
+		font: {
+		  color: '#f8fafc',
+		  family: 'Inter, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif'
+		}
+	  },
+	  {
+		responsive: true,
+		displayModeBar: true,
+		modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'autoScale2d', 'hoverClosestCartesian', 'hoverCompareCartesian'],
+		displaylogo: false
 	  }
 	);
 
@@ -126,7 +192,7 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 		  x1: xval,
 		  y0: Math.min(...y),
 		  y1: Math.max(...y),
-		  line: { color: "red", width: 2 },
+		  line: { color: "#06b6d4", width: 2 },
 		},
 	  });
 	});
@@ -150,7 +216,7 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 			x1: xval,
 			y0: Math.min(...y),
 			y1: Math.max(...y),
-			line: { color: "black", width: 2, dash: "dot" },
+			line: { color: "#f8fafc", width: 2, dash: "dot" },
 		  },
 		});
 	  });
@@ -178,9 +244,40 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
   }, [data, drawPlot]);
 
   return (
-	<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-	  {loading && <div>Loading timeseries data...</div>}
-	  {error && <div style={{ color: 'red' }}>Error: {error}</div>}
+	<div style={{
+	  width: "100%",
+	  height: "100%",
+	  display: "flex",
+	  flexDirection: "column",
+	  backgroundColor: "#0f172a",
+	  color: "#f8fafc"
+	}}>
+	  {loading && (
+		<div style={{
+		  display: "flex",
+		  alignItems: "center",
+		  justifyContent: "center",
+		  height: "100%",
+		  color: "#cbd5e1",
+		  fontSize: "16px"
+		}}>
+		  Loading timeseries data...
+		</div>
+	  )}
+	  {error && (
+		<div style={{
+		  display: "flex",
+		  alignItems: "center",
+		  justifyContent: "center",
+		  height: "100%",
+		  color: "#ef4444",
+		  fontSize: "16px",
+		  textAlign: "center",
+		  padding: "20px"
+		}}>
+		  Error: {error}
+		</div>
+	  )}
 	  <div ref={plotDiv} id="plot" style={{ width: "100%", height: "100%", flex: 1 }}></div>
 	</div>
   );
