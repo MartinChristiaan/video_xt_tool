@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import TimeseriesPlot from './timeseries_plot';
 import InteractiveImage from './InteractiveImage';
 import Sidebar from './sidebar';
-import { getSubsets, getSubset, type Sequence } from './api';
+import { getSubsets, getSubset, getTimeseriesOptions, type Sequence } from './api';
 import './App.css';
 
 
@@ -16,7 +16,8 @@ export default function App() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [timeseriesName, setTimeseriesName] = useState<string>('detections/yolov8x_mscoco.csv');
+  const [timeseriesName, setTimeseriesName] = useState<string>('');
+  const [availableTimeseries, setAvailableTimeseries] = useState<string[]>([]);
   const [yColumn, setYColumn] = useState<string | undefined>('bbox_y');
   const [zColumn, setZColumn] = useState<string | undefined>('confidence');
 
@@ -63,6 +64,37 @@ export default function App() {
 
     loadSubsets();
   }, [subsetName]);
+
+  // Load available timeseries for the current sequence
+  const loadTimeseries = useCallback(async (videoset: string, camera: string) => {
+    try {
+      const response = await getTimeseriesOptions(videoset, camera);
+      if (response.error) {
+        console.error('Error loading timeseries options:', response.error);
+      } else if (response.data) {
+        setAvailableTimeseries(response.data);
+        // Set default timeseries name if not already set
+        if (!timeseriesName && response.data.length > 0) {
+          // Try to find a default that contains "detection" or use the first one
+          const defaultTimeseries = response.data.find(name =>
+            name.toLowerCase().includes('detection') ||
+            name.toLowerCase().includes('yolo')
+          ) || response.data[0];
+          setTimeseriesName(defaultTimeseries);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load timeseries options:', err);
+    }
+  }, [timeseriesName]);
+
+  // Load timeseries when subset changes
+  useEffect(() => {
+    if (subset && subset.length > 0) {
+      const currentSequence = subset[subsetIndex];
+      loadTimeseries(currentSequence.videoset, currentSequence.camera);
+    }
+  }, [subset, subsetIndex, loadTimeseries]);
 
   // Load a specific subset
   const loadSubset = async (name: string) => {
@@ -112,6 +144,10 @@ export default function App() {
     setZColumn(column);
   };
 
+  const handleTimeseriesChange = (newTimeseriesName: string) => {
+    setTimeseriesName(newTimeseriesName);
+  };
+
   // Show loading state
   if (loading) {
     return (
@@ -153,6 +189,8 @@ export default function App() {
         videoset={videoset}
         camera={camera}
         timeseriesName={timeseriesName}
+        availableTimeseries={availableTimeseries}
+        onTimeseriesChange={handleTimeseriesChange}
         yColumn={yColumn}
         zColumn={zColumn}
         onYColumnChange={handleYColumnChange}

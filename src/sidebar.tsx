@@ -6,6 +6,8 @@ interface SidebarProps {
   videoset: string;
   camera: string;
   timeseriesName: string;
+  availableTimeseries: string[];
+  onTimeseriesChange: (timeseriesName: string) => void;
   yColumn?: string;
   zColumn?: string;
   onYColumnChange: (column: string | undefined) => void;
@@ -24,6 +26,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   videoset,
   camera,
   timeseriesName,
+  availableTimeseries,
+  onTimeseriesChange,
   yColumn,
   zColumn,
   onYColumnChange,
@@ -139,6 +143,29 @@ const Sidebar: React.FC<SidebarProps> = ({
             <span className="info-label">Annotation:</span> <span className="info-value">{currentSequence.annotation_suffix}</span>
           </div>
         </div>
+      </div>
+
+      <h3>Timeseries Selection</h3>
+
+      <div className="form-group">
+        <label className="form-label">
+          Timeseries Dataset:
+        </label>
+        <select
+          value={timeseriesName}
+          onChange={(e) => onTimeseriesChange(e.target.value)}
+          className="form-select"
+        >
+          {availableTimeseries.length === 0 ? (
+            <option value="">Loading...</option>
+          ) : (
+            availableTimeseries.map((timeseries) => (
+              <option key={timeseries} value={timeseries}>
+                {timeseries}
+              </option>
+            ))
+          )}
+        </select>
       </div>
 
       <h3>Plot Configuration</h3>
