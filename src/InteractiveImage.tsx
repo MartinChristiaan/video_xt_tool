@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { MouseEvent } from 'react';
 import { fetchFrameSize, getTimeseriesAtTimestamp, getFrameUrl } from './api';
+import './InteractiveImage.css';
 export interface Box {
   bbox_x: number;
   bbox_y: number;
@@ -195,13 +196,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
 
   return (
     <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        outline: 'none', // Remove focus outline
-        overflow: 'hidden', // Hide content that goes outside bounds when zoomed
-      }}
+      className="interactive-image-container"
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -212,36 +207,20 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       ref={imageContainerRef}
     >
       <div
-        style={{
-          transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-          transformOrigin: '0 0',
-          width: '100%',
-          height: '100%',
-          position: 'relative',
-        }}
+        className="interactive-image-transform"
+        style={{ transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})` }}
       >
         <img
           src={getFrameUrl(videoset, camera, timestamp)}
           alt="interactive"
-          style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' }}
+          className="interactive-image-content"
         />
 
         {/* Zoom indicator */}
         {zoom !== 1 && (
           <div
-            style={{
-              position: 'absolute',
-              top: '10px',
-              right: '10px',
-              background: 'rgba(0, 0, 0, 0.7)',
-              color: 'white',
-              padding: '5px 10px',
-              borderRadius: '5px',
-              fontSize: '14px',
-              pointerEvents: 'none',
-              transform: `scale(${1/zoom})`, // Counter-scale to maintain constant size
-              transformOrigin: 'top right',
-            }}
+            className="interactive-image-zoom-indicator"
+            style={{ transform: `scale(${1 / zoom})` }}
           >
             {Math.round(zoom * 100)}%
           </div>
@@ -250,29 +229,15 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       {detectionBoxes.map((box, index) => (
         <div
           key={`detection-${index}`}
+          className="interactive-image-detection-box"
           style={{
-            position: 'absolute',
-            border: '2px solid green',
             left: box.bbox_x * scale_factor + x_offset,
             top: box.bbox_y * scale_factor + y_offset,
             width: box.bbox_w * scale_factor,
             height: box.bbox_h * scale_factor,
-            pointerEvents: 'none', // Make detection boxes non-interactive
           }}
         >
-          <div style={{
-            position: 'absolute',
-            top: -10,
-            left: -2,
-            color: 'white',
-            backgroundColor: 'green',
-            padding: '2px',
-            fontSize: '6px',
-            fontWeight: 'bold',
-            borderRadius: '2px',
-            whiteSpace: 'nowrap',
-            lineHeight: '1'
-          }}>
+          <div className="interactive-image-detection-label">
             {box.label}
           </div>
         </div>
@@ -281,9 +246,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       {boxes.map((box, index) => (
         <div
           key={`manual-${index}`}
+          className="interactive-image-manual-box"
           style={{
-            position: 'absolute',
-            border: '2px solid red',
             left: box.bbox_x * scale_factor,
             top: box.bbox_y * scale_factor,
             width: box.bbox_w * scale_factor,
@@ -291,28 +255,15 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           }}
           onContextMenu={(e) => handleRemoveBox(e, index)}
         >
-          <div style={{
-            position: 'absolute',
-            top: -16,
-            left: -1,
-            color: 'white',
-            backgroundColor: 'red',
-            padding: '2px 4px',
-            fontSize: '10px',
-            fontWeight: 'bold',
-            borderRadius: '2px',
-            whiteSpace: 'nowrap',
-            lineHeight: '1'
-          }}>
+          <div className="interactive-image-manual-label">
             {box.label}
           </div>
         </div>
       ))}
       {currentBox && (
         <div
+          className="interactive-image-drawing-box"
           style={{
-            position: 'absolute',
-            border: '2px dotted blue',
             left: (currentBox.bbox_w > 0 ? currentBox.bbox_x : currentBox.bbox_x + currentBox.bbox_w) * scale_factor,
             top: (currentBox.bbox_h > 0 ? currentBox.bbox_y : currentBox.bbox_y + currentBox.bbox_h) * scale_factor,
             width: Math.abs(currentBox.bbox_w) * scale_factor,
