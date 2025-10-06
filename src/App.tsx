@@ -174,6 +174,39 @@ export default function App() {
     setShowAnnotations(show);
   };
 
+  // Keyboard shortcuts for timestamp navigation
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    // Only handle keys when not typing in an input field
+    const target = event.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    switch (event.key.toLowerCase()) {
+      case 'd':
+        event.preventDefault();
+        setSelectedTimestamp(prev => prev + 1);
+        break;
+      case 'a':
+        event.preventDefault();
+        setSelectedTimestamp(prev => prev - 1);
+        break;
+    }
+  }, []);
+
+  // Register keyboard event listeners
+  useEffect(() => {
+    const handleKeyDownEvent = (event: KeyboardEvent) => handleKeyDown(event);
+    
+    // Add event listener to document to capture keys globally
+    document.addEventListener('keydown', handleKeyDownEvent);
+    
+    // Cleanup function to remove event listener
+    return () => {
+      document.removeEventListener('keydown', handleKeyDownEvent);
+    };
+  }, [handleKeyDown]);
+
   // Show loading state
   if (loading) {
     return (
@@ -211,6 +244,21 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* Keyboard shortcuts info */}
+      <div className="keyboard-shortcuts-info" style={{
+        position: 'fixed',
+        top: '10px',
+        right: '10px',
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        padding: '8px 12px',
+        borderRadius: '6px',
+        fontSize: '12px',
+        zIndex: 1000,
+        fontFamily: 'monospace'
+      }}>
+        <div>Keyboard: A/D = -/+ 1 second</div>
+      </div>
       <Sidebar
         videoset={videoset}
         camera={camera}

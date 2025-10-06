@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { MouseEvent } from 'react';
 import { fetchFrameSize, getTimeseriesAtTimestamp, getFrameUrl, getAnnotationAtTimestamp } from './api';
-import { zValueToColor, getZRange, defaultBoxColors } from './colorUtils';
+import { zValueToColor, getZRange, defaultBoxColors, getContrastingTextColor } from './colorUtils';
 import './InteractiveImage.css';
 export interface Box {
   bbox_x: number;
@@ -47,6 +47,9 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
   // Calculate z-value ranges for color mapping
   const allZValues = [
     ...detectionBoxes.map(box => getBoxZValue(box, zColumn)),
+    ...annotationBoxes.map(box => getBoxZValue(box, zColumn)),
+    ...boxes.map(box => getBoxZValue(box, zColumn)),
+    ...(annotations?.z || [])
   ].filter((z): z is number => z != null);
 
   const { min: zMin, max: zMax } = getZRange(allZValues);
@@ -55,7 +58,6 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     const frame_size = await fetchFrameSize(videoset,camera,timestamp);
     if (frame_size.data) {
       setFrameSize({width:frame_size.data.width,height:frame_size.data.height});
-      console.log("Frame size:",frame_size.data);
     }
     else {
       console.error("Error fetching frame size:",frame_size.error);
@@ -70,7 +72,6 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       if (detectionData.data && detectionData.data.length > 0) {
         // Convert the detection data to Box format
         setDetectionBoxes(detectionData.data as unknown as Box[]);
-        console.log("Loaded detection boxes:", boxes);
       } else {
         setDetectionBoxes([]);
       }
@@ -98,7 +99,6 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           label: (annotation.label as string) || `Ann${index + 1}`,
         }));
         setAnnotationBoxes(boxes);
-        console.log("Loaded annotation boxes:", boxes);
       } else {
         setAnnotationBoxes([]);
       }
@@ -274,7 +274,6 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       {/* Render detection boxes from API (read-only) */}
       {detectionBoxes.map((box, index) => {
         const z_value = getBoxZValue(box,zColumn);
-        console.log("Detection box z_value:", z_value,zMin,zMax);
         const boxColor = zValueToColor(z_value, zMin, zMax, defaultBoxColors.detection);
         return (
           <div
@@ -294,7 +293,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
               position: 'absolute',
               top: -10,
               left: -2,
-              color: '#ffffff',
+              color: getContrastingTextColor(boxColor),
               backgroundColor: boxColor,
               padding: '2px',
               fontSize: '6px',
@@ -312,7 +311,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
 
       {/* Render annotation boxes from API (read-only) */}
       {annotationBoxes.map((box, index) => {
-        const boxColor = zValueToColor(box.z_value, zMin, zMax, defaultBoxColors.annotation);
+        const z_value = getBoxZValue(box, zColumn);
+        const boxColor = zValueToColor(z_value, zMin, zMax, defaultBoxColors.annotation);
         return (
           <div
             key={`annotation-box-${index}`}
@@ -331,7 +331,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
               position: 'absolute',
               top: -12,
               left: -2,
-              color: '#ffffff',
+              color: getContrastingTextColor(boxColor),
               backgroundColor: boxColor,
               padding: '2px',
               fontSize: '7px',
@@ -372,7 +372,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
               top: -18,
               left: '50%',
               transform: 'translateX(-50%)',
-              color: '#ffffff',
+              color: getContrastingTextColor(pointColor),
               backgroundColor: pointColor,
               padding: '1px 3px',
               fontSize: '8px',
@@ -390,7 +390,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
 
       {/* Render manually drawn boxes (interactive) */}
       {boxes.map((box, index) => {
-        const boxColor = zValueToColor(box.z_value, zMin, zMax, defaultBoxColors.manual);
+        const z_value = getBoxZValue(box, zColumn);
+        const boxColor = zValueToColor(z_value, zMin, zMax, defaultBoxColors.manual);
         return (
           <div
             key={`manual-${index}`}
@@ -410,7 +411,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
               position: 'absolute',
               top: -16,
               left: -1,
-              color: '#ffffff',
+              color: getContrastingTextColor(boxColor),
               backgroundColor: boxColor,
               padding: '2px 4px',
               fontSize: '10px',

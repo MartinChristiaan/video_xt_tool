@@ -17,6 +17,7 @@ const viridisColors: [number, string][] = [
   [1.0, '#f0f921']
 ];
 
+
 /**
  * Interpolate between two colors
  */
@@ -104,6 +105,49 @@ export function getZRange(zValues: (number | undefined | null)[]): { min: number
     min: Math.min(...validValues),
     max: Math.max(...validValues)
   };
+}
+
+/**
+ * Calculate the relative luminance of a color (0-1 scale)
+ * Based on WCAG 2.0 guidelines
+ */
+function getLuminance(hexColor: string): number {
+  const hex2rgb = (hex: string) => ({
+    r: parseInt(hex.slice(1, 3), 16),
+    g: parseInt(hex.slice(3, 5), 16),
+    b: parseInt(hex.slice(5, 7), 16)
+  });
+  
+  const { r, g, b } = hex2rgb(hexColor);
+  
+  // Convert to sRGB and apply gamma correction
+  const srgbToLinear = (val: number) => {
+    const normalized = val / 255;
+    return normalized <= 0.03928 
+      ? normalized / 12.92 
+      : Math.pow((normalized + 0.055) / 1.055, 2.4);
+  };
+  
+  const rLinear = srgbToLinear(r);
+  const gLinear = srgbToLinear(g);
+  const bLinear = srgbToLinear(b);
+  
+  // Calculate relative luminance using WCAG formula
+  return 0.2126 * rLinear + 0.7152 * gLinear + 0.0722 * bLinear;
+}
+
+/**
+ * Determine appropriate text color (black or white) based on background color
+ * @param backgroundColor Hex color string for the background
+ * @param threshold Luminance threshold (0-1), default 0.5
+ * @returns '#000000' for dark text or '#ffffff' for light text
+ */
+export function getContrastingTextColor(
+  backgroundColor: string, 
+  threshold: number = 0.5
+): string {
+  const luminance = getLuminance(backgroundColor);
+  return luminance > threshold ? '#000000' : '#ffffff';
 }
 
 /**
