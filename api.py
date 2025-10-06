@@ -1,4 +1,6 @@
 import threading
+from abc import ABC, abstractmethod
+from collections import OrderedDict
 from pathlib import Path
 
 import cv2
@@ -16,38 +18,124 @@ from vset_utils.vset_select import (
 app = Flask(__name__)
 CORS(app)
 
-class MediaManagerCache:
-    def __init__(self,max_len=20):
-        self.cache = {}
-        self._lock = threading.Lock()
 
-    def get(self, videoset_name, camera):
-        key = (videoset_name, camera)
-        with self._lock:
-            if key not in self.cache:
-                self.cache[key] = get_mediamanager(videoset_name, camera)
-            if len(self.cache) > 20:
-                self.cache.pop(next(iter(self.cache))) # remove oldest entry
-            return self.cache[key]
-
-media_manager_cache = MediaManagerCache()
-class FrameCache:
+class BaseCache(ABC):
+    """Base class for thread-safe LRU caches with configurable size limits."""
+    
     def __init__(self, max_len=100):
-        self.cache = {}
+        self.cache = OrderedDict()
         self.max_len = max_len
         self._lock = threading.Lock()
-
-    def get(self, videoset,camera, timestamp: float):
-        key = (videoset,camera, timestamp)
+    
+    def _evict_if_needed(self):
+        """Remove oldest entries if cache exceeds max_len."""
+        while len(self.cache) > self.max_len:
+            self.cache.popitem(last=False)  # Remove oldest (FIFO/LRU)
+    
+    def _get_from_cache(self, key):
+        """Get item from cache and mark as recently used."""
+        if key in self.cache:
+            # Move to end (most recently used)
+            value = self.cache.pop(key)
+            self.cache[key] = value
+            return value
+        return None
+    
+    def _put_in_cache(self, key, value):
+        """Put item in cache and handle eviction."""
+        self.cache[key] = value
+        self._evict_if_needed()
+    
+    @abstractmethod
+    def _compute_value(self, *args, **kwargs):
+        """Compute the value for a cache miss. Must be implemented by subclasses."""
+        pass
+    
+    def get(self, *args, **kwargs):
+        """Get item from cache or compute it if not present."""
+        key = self._make_key(*args, **kwargs)
+        
         with self._lock:
-            if key not in self.cache:
-                mm = media_manager_cache.get(videoset,camera)
-                frame, _ = mm.get_frame_nearest(timestamp)
-                self.cache[key] = frame
-            if len(self.cache) > self.max_len:
-                self.cache.pop(next(iter(self.cache)))  # remove oldest entry
-            return self.cache[key]
+            cached_value = self._get_from_cache(key)
+            if cached_value is not None:
+                return cached_value
+            
+            # Cache miss - compute value
+            value = self._compute_value(*args, **kwargs)
+            self._put_in_cache(key, value)
+            return value
+    
+    @abstractmethod
+    def _make_key(self, *args, **kwargs):
+        """Create cache key from arguments. Must be implemented by subclasses."""
+        pass
+
+
+class MediaManagerCache(BaseCache):
+    """Cache for media manager instances."""
+    
+    def __init__(self, max_len=20):
+        super().__init__(max_len)
+    
+    def _make_key(self, videoset_name, camera):
+        return (videoset_name, camera)
+    
+    def _compute_value(self, videoset_name, camera):
+        return get_mediamanager(videoset_name, camera)
+
+media_manager_cache = MediaManagerCache()
+
+
+class FrameCache(BaseCache):
+    """Cache for video frames."""
+    
+    def __init__(self, max_len=100):
+        super().__init__(max_len)
+    
+    def _make_key(self, videoset, camera, timestamp):
+        return (videoset, camera, timestamp)
+    
+    def _compute_value(self, videoset, camera, timestamp):
+        mm = media_manager_cache.get(videoset, camera)
+        frame, _ = mm.get_frame_nearest(float(timestamp))
+        return frame
+
+
 frame_cache = FrameCache()
+
+
+class TimeSeriesCache(BaseCache):
+    """Cache for time series data."""
+    
+    def __init__(self, max_len=20):
+        super().__init__(max_len)
+    
+    def _make_key(self, videoset_name, camera, timeseries_name):
+        return (videoset_name, camera, timeseries_name)
+    
+    def _compute_value(self, videoset_name, camera, timeseries_name):
+        mm = media_manager_cache.get(videoset_name, camera)
+        return mm.load(timeseries_name)
+
+
+timeseries_cache = TimeSeriesCache()
+
+class FrameSizeCache(BaseCache):
+    """Cache for frame dimensions."""
+    
+    def __init__(self, max_len=100):
+        super().__init__(max_len)
+    
+    def _make_key(self, videoset, camera):
+        return (videoset, camera)
+    
+    def _compute_value(self, videoset, camera):
+        frame = frame_cache.get(videoset, camera, 0)  # get first frame
+        height, width = frame.shape[:2]
+        return (width, height)
+
+
+frame_size_cache = FrameSizeCache()
 
 @app.route("/videosets", methods=["GET"])
 def videosets():
@@ -78,8 +166,7 @@ def get_timeseries_data():
     y_column = request.args.get("y_column")
     z_column = request.args.get("z_column")
 
-    mm = media_manager_cache.get(videoset_name, camera)
-    df = mm.load(timeseries_name)
+    df = timeseries_cache.get(videoset_name, camera, timeseries_name)
 
     data = {"x": df["timestamp"].tolist()}
     if y_column and y_column in df.columns:
@@ -110,11 +197,9 @@ def get_frame(videoset_name,camera,timestamp):
 def get_frame_size():
     videoset_name = request.args.get("videoset")
     camera = request.args.get("camera")
-    timestamp = request.args.get("timestamp")
-    assert timestamp is not None, "timestamp parameter is required"
-    frame = frame_cache.get(videoset_name,camera, float(timestamp))
-    height, width = frame.shape[:2]
-    return jsonify({"width": width, "height": height})
+    frame_size = frame_size_cache.get(videoset_name, camera)
+    
+    return jsonify({"width": frame_size[0], "height": frame_size[1]})
 
 @app.route("/annotations", methods=["GET"])
 def get_annotations():
@@ -141,7 +226,6 @@ def get_annotation_at_timestamp():
     camera = request.args.get("camera")
     annotation_suffix = request.args.get("annotation_suffix")
     timestamp = request.args.get("timestamp", type=float)
-    y_column = request.args.get("y_column", "bbox_y")
 
     mm = media_manager_cache.get(videoset_name, camera)
     df = mm.load_annotations(annotation_suffix)
@@ -162,13 +246,9 @@ def get_timeseries_at_timestamp():
     camera = request.args.get("camera")
     timeseries_name = request.args.get("timeseries_name")
     timestamp = request.args.get("timestamp", type=float)
-    mm = media_manager_cache.get(videoset_name, camera)
-    df = mm.load(timeseries_name)
-    if df is None:
-        mm.load(timeseries_name,True)
+    df = timeseries_cache.get(videoset_name, camera, timeseries_name)
     assert df is not None, f'{timeseries_name} not found for {videoset_name} {camera}'
     data = df[df["timestamp"] == timestamp].to_dict("records")
-
     return jsonify(data)
 
 @app.route("/subsets", methods=["GET"])
@@ -203,7 +283,7 @@ def annotation_options(videoset, camera):
     camera =camera.replace("___", "/")
     mm = media_manager_cache.get(videoset, camera)
     options = get_annotation_options(mm)
-    options = [x.stem for x in options if not 'tmp' in str(x) and not 'old' in str(x)]
+    options = [x.stem for x in options if 'tmp' not in str(x) and 'old' not in str(x)]
     parsed_options = []
     for option in options:
         if len(option.split('_')) > 2:
