@@ -242,6 +242,8 @@ export default function App() {
             videoset={videoset}
             camera={camera}
             timeseriesName={timeseriesName}
+            yColumn={yColumn}
+            zColumn={zColumn}
             annotations={annotations}
             showAnnotations={showAnnotations}
             annotationSuffix={currentSequence.annotation_suffix}

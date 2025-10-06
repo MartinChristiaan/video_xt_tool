@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { MouseEvent } from 'react';
 import { fetchFrameSize, getTimeseriesAtTimestamp, getFrameUrl, getAnnotationAtTimestamp } from './api';
+import { zValueToColor, getZRange, defaultBoxColors } from './colorUtils';
 import './InteractiveImage.css';
 export interface Box {
   bbox_x: number;
@@ -8,6 +9,7 @@ export interface Box {
   bbox_w: number;
   bbox_h: number;
   label: string;
+  // may have more properties
 }
 
 interface InteractiveImageProps {
@@ -19,9 +21,18 @@ interface InteractiveImageProps {
   annotations?: { x: number[]; y: number[]; z: number[] } | null;
   showAnnotations?: boolean;
   annotationSuffix?: string;
+  yColumn?: string;
+  zColumn?: string;
 }
 
-const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,timestamp,videoset,camera,timeseriesName,annotations,showAnnotations,annotationSuffix }) => {
+function getBoxZValue(box: Box, zColumn?: string): number {
+  if (zColumn && (box as any)[zColumn] != null) {
+    return (box as any)[zColumn] as number;
+  }
+  return 0;
+}
+
+const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,timestamp,videoset,camera,timeseriesName,annotations,showAnnotations,annotationSuffix,zColumn }) => {
 
   const [currentBox, setCurrentBox] = useState<Omit<Box, 'label'> | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -32,6 +43,13 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
   const [frameSize, setFrameSize] = useState<{width:number,height:number}>({width:0,height:0});
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+
+  // Calculate z-value ranges for color mapping
+  const allZValues = [
+    ...detectionBoxes.map(box => getBoxZValue(box, zColumn)),
+  ].filter((z): z is number => z != null);
+
+  const { min: zMin, max: zMax } = getZRange(allZValues);
 
   const load_frame_size = useCallback(async () => {
     const frame_size = await fetchFrameSize(videoset,camera,timestamp);
@@ -51,14 +69,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       const detectionData = await getTimeseriesAtTimestamp(videoset, camera, timeseriesName, timestamp);
       if (detectionData.data && detectionData.data.length > 0) {
         // Convert the detection data to Box format
-        const boxes: Box[] = detectionData.data.map((detection: Record<string, unknown>) => ({
-          bbox_x: (detection.bbox_x as number),
-          bbox_y: (detection.bbox_y as number),
-          bbox_w: (detection.bbox_w as number),
-          bbox_h: (detection.bbox_h as number),
-          label: (detection.label as string) || (detection.class as string) || 'detection',
-        }));
-        setDetectionBoxes(boxes);
+        setDetectionBoxes(detectionData.data as unknown as Box[]);
         console.log("Loaded detection boxes:", boxes);
       } else {
         setDetectionBoxes([]);
@@ -67,7 +78,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       console.error("Error loading detection boxes:", error);
       setDetectionBoxes([]);
     }
-  }, [videoset, camera, timestamp,timeseriesName]);
+  }, [videoset, camera, timestamp, timeseriesName, zColumn]);
 
   const loadAnnotationBoxes = useCallback(async () => {
     if (!annotationSuffix || !showAnnotations) {
@@ -95,7 +106,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       console.error("Error loading annotation boxes:", error);
       setAnnotationBoxes([]);
     }
-  }, [videoset, camera, annotationSuffix, timestamp, showAnnotations]);
+  }, [videoset, camera, annotationSuffix, timestamp, showAnnotations, zColumn]);
 
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
@@ -199,6 +210,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
         bbox_w: Math.abs(currentBox.bbox_w),
         bbox_h: Math.abs(currentBox.bbox_h),
         label: selectedLabel,
+        // For manually drawn boxes, we could assign a z_value based on the current timestamp
+        // or leave it undefined to use the default color
     };
     // Note: coordinates are already in frame coordinate system from getCoordinates()
     // No additional scaling needed since getCoordinates() already handles scale_factor
@@ -259,83 +272,171 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           </div>
         )}
       {/* Render detection boxes from API (read-only) */}
-      {detectionBoxes.map((box, index) => (
-        <div
-          key={`detection-${index}`}
-          className="interactive-image-detection-box"
-          style={{
-            left: box.bbox_x * scale_factor + x_offset,
-            top: box.bbox_y * scale_factor + y_offset,
-            width: box.bbox_w * scale_factor,
-            height: box.bbox_h * scale_factor,
-          }}
-        >
-          <div className="interactive-image-detection-label">
-            {box.label}
+      {detectionBoxes.map((box, index) => {
+        const z_value = getBoxZValue(box,zColumn);
+        console.log("Detection box z_value:", z_value,zMin,zMax);
+        const boxColor = zValueToColor(z_value, zMin, zMax, defaultBoxColors.detection);
+        return (
+          <div
+            key={`detection-${index}`}
+            style={{
+              position: 'absolute',
+              left: box.bbox_x * scale_factor + x_offset,
+              top: box.bbox_y * scale_factor + y_offset,
+              width: box.bbox_w * scale_factor,
+              height: box.bbox_h * scale_factor,
+              border: `2px solid ${boxColor}`,
+              boxSizing: 'border-box',
+              pointerEvents: 'none'
+            }}
+          >
+            <div style={{
+              position: 'absolute',
+              top: -10,
+              left: -2,
+              color: '#ffffff',
+              backgroundColor: boxColor,
+              padding: '2px',
+              fontSize: '6px',
+              fontWeight: 'bold',
+              borderRadius: '2px',
+              whiteSpace: 'nowrap',
+              lineHeight: 1,
+              fontFamily: 'inherit'
+            }}>
+              {box.label + ` (${z_value.toFixed(2)})`}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Render annotation boxes from API (read-only) */}
-      {annotationBoxes.map((box, index) => (
-        <div
-          key={`annotation-box-${index}`}
-          className="interactive-image-annotation-box"
-          style={{
-            left: box.bbox_x * scale_factor + x_offset,
-            top: box.bbox_y * scale_factor + y_offset,
-            width: box.bbox_w * scale_factor,
-            height: box.bbox_h * scale_factor,
-          }}
-        >
-          <div className="interactive-image-annotation-box-label">
-            {box.label}
+      {annotationBoxes.map((box, index) => {
+        const boxColor = zValueToColor(box.z_value, zMin, zMax, defaultBoxColors.annotation);
+        return (
+          <div
+            key={`annotation-box-${index}`}
+            style={{
+              position: 'absolute',
+              left: box.bbox_x * scale_factor + x_offset,
+              top: box.bbox_y * scale_factor + y_offset,
+              width: box.bbox_w * scale_factor,
+              height: box.bbox_h * scale_factor,
+              border: `2px solid ${boxColor}`,
+              boxSizing: 'border-box',
+              pointerEvents: 'none'
+            }}
+          >
+            <div style={{
+              position: 'absolute',
+              top: -12,
+              left: -2,
+              color: '#ffffff',
+              backgroundColor: boxColor,
+              padding: '2px',
+              fontSize: '7px',
+              fontWeight: 'bold',
+              borderRadius: '2px',
+              whiteSpace: 'nowrap',
+              lineHeight: 1,
+              fontFamily: 'inherit'
+            }}>
+              {box.label}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Render annotation points from API (read-only) */}
-      {annotations && showAnnotations && annotations.x.map((x, index) => (
-        <div
-          key={`annotation-${index}`}
-          className="interactive-image-annotation-point"
-          style={{
-            left: x * scale_factor + x_offset - 4, // Center the point (8px diameter / 2)
-            top: annotations.y[index] * scale_factor + y_offset - 4,
-          }}
-        >
-          <div className="interactive-image-annotation-label">
-            {`A${index + 1}`}
+      {annotations && showAnnotations && annotations.x.map((x, index) => {
+        const zValue = annotations.z ? annotations.z[index] : undefined;
+        const pointColor = zValueToColor(zValue, zMin, zMax, defaultBoxColors.annotationPoint);
+        return (
+          <div
+            key={`annotation-${index}`}
+            style={{
+              position: 'absolute',
+              left: x * scale_factor + x_offset - 4, // Center the point (8px diameter / 2)
+              top: annotations.y[index] * scale_factor + y_offset - 4,
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: pointColor,
+              border: `2px solid ${pointColor}`,
+              boxSizing: 'border-box',
+              pointerEvents: 'none'
+            }}
+          >
+            <div style={{
+              position: 'absolute',
+              top: -18,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              color: '#ffffff',
+              backgroundColor: pointColor,
+              padding: '1px 3px',
+              fontSize: '8px',
+              fontWeight: 'bold',
+              borderRadius: '2px',
+              whiteSpace: 'nowrap',
+              lineHeight: 1,
+              fontFamily: 'inherit'
+            }}>
+              {`A${index + 1}`}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Render manually drawn boxes (interactive) */}
-      {boxes.map((box, index) => (
-        <div
-          key={`manual-${index}`}
-          className="interactive-image-manual-box"
-          style={{
-            left: box.bbox_x * scale_factor,
-            top: box.bbox_y * scale_factor,
-            width: box.bbox_w * scale_factor,
-            height: box.bbox_h * scale_factor,
-          }}
-          onContextMenu={(e) => handleRemoveBox(e, index)}
-        >
-          <div className="interactive-image-manual-label">
-            {box.label}
+      {boxes.map((box, index) => {
+        const boxColor = zValueToColor(box.z_value, zMin, zMax, defaultBoxColors.manual);
+        return (
+          <div
+            key={`manual-${index}`}
+            style={{
+              position: 'absolute',
+              left: box.bbox_x * scale_factor,
+              top: box.bbox_y * scale_factor,
+              width: box.bbox_w * scale_factor,
+              height: box.bbox_h * scale_factor,
+              border: `2px solid ${boxColor}`,
+              boxSizing: 'border-box',
+              cursor: 'pointer'
+            }}
+            onContextMenu={(e) => handleRemoveBox(e, index)}
+          >
+            <div style={{
+              position: 'absolute',
+              top: -16,
+              left: -1,
+              color: '#ffffff',
+              backgroundColor: boxColor,
+              padding: '2px 4px',
+              fontSize: '10px',
+              fontWeight: 'bold',
+              borderRadius: '2px',
+              whiteSpace: 'nowrap',
+              lineHeight: 1,
+              fontFamily: 'inherit',
+              pointerEvents: 'none'
+            }}>
+              {box.label}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       {currentBox && (
         <div
-          className="interactive-image-drawing-box"
           style={{
+            position: 'absolute',
             left: (currentBox.bbox_w > 0 ? currentBox.bbox_x : currentBox.bbox_x + currentBox.bbox_w) * scale_factor,
             top: (currentBox.bbox_h > 0 ? currentBox.bbox_y : currentBox.bbox_y + currentBox.bbox_h) * scale_factor,
             width: Math.abs(currentBox.bbox_w) * scale_factor,
             height: Math.abs(currentBox.bbox_h) * scale_factor,
+            border: `2px dotted ${defaultBoxColors.drawing}`,
+            boxSizing: 'border-box',
+            pointerEvents: 'none'
           }}
         />
       )}

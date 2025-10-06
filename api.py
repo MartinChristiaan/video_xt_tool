@@ -216,4 +216,4 @@ def annotation_options(videoset, camera):
     return jsonify(parsed_options)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)

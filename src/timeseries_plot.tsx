@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Plotly from "plotly.js-dist";
 import { getTimeseriesData } from "./api";
+import { defaultBoxColors } from "./colorUtils";
 
 
 interface TimeseriesPlotProps {
@@ -62,7 +63,8 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 		mode: 'markers',
 		marker: {
 			size: 5,
-			color: z.length > 0 ? z : '#2563eb',
+			color: z.length > 0 ? z : defaultBoxColors.detection,
+			colorscale: z.length > 0 ? 'Viridis' : undefined,
 			showscale: z.length > 0,
 			colorbar: z.length > 0 ? {
 				title: {
@@ -84,7 +86,7 @@ export default function TimeseriesPlot({ videoset,camera,setSelectedTimestamp,ti
 				outlinewidth: 1
 			} : undefined,
 			line: z.length === 0 ? {
-				color: '#1e40af',
+				color: defaultBoxColors.detection,
 				width: 1
 			} : undefined
 		},
