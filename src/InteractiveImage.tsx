@@ -9,6 +9,8 @@ export interface Box {
   bbox_w: number;
   bbox_h: number;
   label: string;
+  type: 'detection' | 'annotation' | 'manual';
+  id?: string; // Unique identifier for tracking
   // may have more properties
 }
 
@@ -34,11 +36,10 @@ function getBoxZValue(box: Box, zColumn?: string): number {
 
 const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,timestamp,videoset,camera,timeseriesName,annotations,showAnnotations,annotationSuffix,zColumn }) => {
 
-  const [currentBox, setCurrentBox] = useState<Omit<Box, 'label'> | null>(null);
+  const [currentBox, setCurrentBox] = useState<Omit<Box, 'label' | 'type' | 'id'> & { id: string } | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [allBoxes, setAllBoxes] = useState<Box[]>([]);
   const [detectionBoxes, setDetectionBoxes] = useState<Box[]>([]);
-  const [annotationBoxes, setAnnotationBoxes] = useState<Box[]>([]);
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [frameSize, setFrameSize] = useState<{width:number,height:number}>({width:0,height:0});
   const [zoom, setZoom] = useState(1);
@@ -47,8 +48,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
   // Calculate z-value ranges for color mapping
   const allZValues = [
     ...detectionBoxes.map(box => getBoxZValue(box, zColumn)),
-    ...annotationBoxes.map(box => getBoxZValue(box, zColumn)),
-    ...boxes.map(box => getBoxZValue(box, zColumn)),
+    ...allBoxes.map(box => getBoxZValue(box, zColumn)),
     ...(annotations?.z || [])
   ].filter((z): z is number => z != null);
 
@@ -83,7 +83,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
 
   const loadAnnotationBoxes = useCallback(async () => {
     if (!annotationSuffix || !showAnnotations) {
-      setAnnotationBoxes([]);
+      // Remove existing annotation boxes from the unified state
+      setAllBoxes(prevBoxes => prevBoxes.filter(box => box.type !== 'annotation'));
       return;
     }
 
@@ -91,20 +92,28 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
       const annotationData = await getAnnotationAtTimestamp(videoset, camera, annotationSuffix, timestamp);
       if (annotationData.data && annotationData.data.length > 0) {
         // Convert the annotation data to Box format
-        const boxes: Box[] = annotationData.data.map((annotation: Record<string, unknown>, index: number) => ({
+        const annotationBoxes: Box[] = annotationData.data.map((annotation: Record<string, unknown>, index: number) => ({
           bbox_x: (annotation.bbox_x as number) || 0,
           bbox_y: (annotation.bbox_y as number) || 0,
           bbox_w: (annotation.bbox_w as number) || 10,
           bbox_h: (annotation.bbox_h as number) || 10,
           label: (annotation.label as string) || `Ann${index + 1}`,
+          type: 'annotation',
+          id: `annotation-${timestamp}-${index}`
         }));
-        setAnnotationBoxes(boxes);
+        
+        // Replace annotation boxes in the unified state
+        setAllBoxes(prevBoxes => [
+          ...prevBoxes.filter(box => box.type !== 'annotation'),
+          ...annotationBoxes
+        ]);
       } else {
-        setAnnotationBoxes([]);
+        // Remove existing annotation boxes if no data
+        setAllBoxes(prevBoxes => prevBoxes.filter(box => box.type !== 'annotation'));
       }
     } catch (error) {
       console.error("Error loading annotation boxes:", error);
-      setAnnotationBoxes([]);
+      setAllBoxes(prevBoxes => prevBoxes.filter(box => box.type !== 'annotation'));
     }
   }, [videoset, camera, annotationSuffix, timestamp, showAnnotations, zColumn]);
 
@@ -181,7 +190,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     if (!coords) return;
 
     setIsDrawing(true);
-    setCurrentBox({ bbox_x: coords.x, bbox_y: coords.y, bbox_w: 0, bbox_h: 0 });
+    setCurrentBox({ bbox_x: coords.x, bbox_y: coords.y, bbox_w: 0, bbox_h: 0, id: `drawing-${Date.now()}` });
   };
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
@@ -210,6 +219,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
         bbox_w: Math.abs(currentBox.bbox_w),
         bbox_h: Math.abs(currentBox.bbox_h),
         label: selectedLabel,
+        type: 'manual',
+        id: `manual-${timestamp}-${Date.now()}`,
         // For manually drawn boxes, we could assign a z_value based on the current timestamp
         // or leave it undefined to use the default color
     };
@@ -217,21 +228,29 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     // No additional scaling needed since getCoordinates() already handles scale_factor
 
     if (finalBox.bbox_w > 5 && finalBox.bbox_h > 5) { // Minimum size check
-        setBoxes([...boxes, finalBox]);
+        setAllBoxes(prevBoxes => [...prevBoxes, finalBox]);
     }
 
     setIsDrawing(false);
     setCurrentBox(null);
   };
 
-  const handleRemoveBox = (e: React.MouseEvent, indexToRemove: number) => {
+  const handleRemoveBox = (e: React.MouseEvent, boxId: string) => {
     e.preventDefault();
-    setBoxes(boxes.filter((_, index) => index !== indexToRemove));
+    setAllBoxes(prevBoxes => prevBoxes.filter(box => box.id !== boxId));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Backspace') {
-      setBoxes(boxes.slice(0, -1));
+      // Remove the last manually created or annotation box
+      setAllBoxes(prevBoxes => {
+        const editableBoxes = prevBoxes.filter(box => box.type === 'manual' || box.type === 'annotation');
+        if (editableBoxes.length > 0) {
+          const lastBox = editableBoxes[editableBoxes.length - 1];
+          return prevBoxes.filter(box => box.id !== lastBox.id);
+        }
+        return prevBoxes;
+      });
     }
   };
 
@@ -309,13 +328,13 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
         );
       })}
 
-      {/* Render annotation boxes from API (read-only) */}
-      {annotationBoxes.map((box, index) => {
+      {/* Render annotation boxes from unified state (interactive) */}
+      {allBoxes.filter(box => box.type === 'annotation').map((box) => {
         const z_value = getBoxZValue(box, zColumn);
         const boxColor = zValueToColor(z_value, zMin, zMax, defaultBoxColors.annotation);
         return (
           <div
-            key={`annotation-box-${index}`}
+            key={box.id}
             style={{
               position: 'absolute',
               left: box.bbox_x * scale_factor + x_offset,
@@ -324,8 +343,9 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
               height: box.bbox_h * scale_factor,
               border: `2px solid ${boxColor}`,
               boxSizing: 'border-box',
-              pointerEvents: 'none'
+              cursor: 'pointer'
             }}
+            onContextMenu={(e) => handleRemoveBox(e, box.id!)}
           >
             <div style={{
               position: 'absolute',
@@ -339,7 +359,8 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
               borderRadius: '2px',
               whiteSpace: 'nowrap',
               lineHeight: 1,
-              fontFamily: 'inherit'
+              fontFamily: 'inherit',
+              pointerEvents: 'none'
             }}>
               {box.label}
             </div>
@@ -388,13 +409,13 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
         );
       })}
 
-      {/* Render manually drawn boxes (interactive) */}
-      {boxes.map((box, index) => {
+      {/* Render manually drawn boxes from unified state (interactive) */}
+      {allBoxes.filter(box => box.type === 'manual').map((box) => {
         const z_value = getBoxZValue(box, zColumn);
         const boxColor = zValueToColor(z_value, zMin, zMax, defaultBoxColors.manual);
         return (
           <div
-            key={`manual-${index}`}
+            key={box.id}
             style={{
               position: 'absolute',
               left: box.bbox_x * scale_factor,
@@ -405,7 +426,7 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
               boxSizing: 'border-box',
               cursor: 'pointer'
             }}
-            onContextMenu={(e) => handleRemoveBox(e, index)}
+            onContextMenu={(e) => handleRemoveBox(e, box.id!)}
           >
             <div style={{
               position: 'absolute',
