@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getColumnOptions, type Sequence } from './api';
+import { getColumnOptions, saveAnnotations, type Sequence } from './api';
 import './sidebar.css';
 
 interface SidebarProps {
@@ -24,6 +24,8 @@ interface SidebarProps {
   // Annotation-related props
   showAnnotations: boolean;
   onShowAnnotationsChange: (show: boolean) => void;
+  autosaveAnnotations: boolean;
+  onAutosaveAnnotationsChange: (autosave: boolean) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -45,11 +47,15 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentSequence,
   allSequences,
   showAnnotations,
-  onShowAnnotationsChange
+  onShowAnnotationsChange,
+  autosaveAnnotations,
+  onAutosaveAnnotationsChange
 }) => {
   const [columns, setColumns] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savingAnnotations, setSavingAnnotations] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const loadColumns = useCallback(async () => {
     if (!videoset || !camera || !timeseriesName) {
@@ -80,6 +86,71 @@ const Sidebar: React.FC<SidebarProps> = ({
   useEffect(() => {
     loadColumns();
   }, [loadColumns]);
+
+  const handleSaveAnnotations = useCallback(async () => {
+    if (!currentSequence.annotation_suffix) {
+      setSaveMessage('No annotation suffix available');
+      setTimeout(() => setSaveMessage(null), 3000);
+      return;
+    }
+
+    setSavingAnnotations(true);
+    setSaveMessage(null);
+
+    try {
+      const response = await saveAnnotations(
+        currentSequence.videoset,
+        currentSequence.camera,
+        currentSequence.annotation_suffix
+      );
+
+      if (response.error) {
+        setSaveMessage(`Error: ${response.error}`);
+      } else if (response.data) {
+        setSaveMessage(`Saved! Created: ${response.data.num_created}, Kept: ${response.data.num_kept}`);
+      }
+    } catch (err) {
+      setSaveMessage(err instanceof Error ? err.message : 'Failed to save annotations');
+    } finally {
+      setSavingAnnotations(false);
+      setTimeout(() => setSaveMessage(null), 5000);
+    }
+  }, [currentSequence]);
+
+  // Autosave when sequence changes
+  const prevSequenceRef = React.useRef<Sequence | null>(null);
+  
+  useEffect(() => {
+    if (autosaveAnnotations && prevSequenceRef.current && 
+        (prevSequenceRef.current.videoset !== currentSequence.videoset ||
+         prevSequenceRef.current.camera !== currentSequence.camera ||
+         prevSequenceRef.current.annotation_suffix !== currentSequence.annotation_suffix)) {
+      // Save annotations for the previous sequence
+      const saveForPreviousSequence = async () => {
+        const prevSeq = prevSequenceRef.current!;
+        if (prevSeq.annotation_suffix) {
+          setSavingAnnotations(true);
+          try {
+            const response = await saveAnnotations(
+              prevSeq.videoset,
+              prevSeq.camera,
+              prevSeq.annotation_suffix
+            );
+            if (response.data) {
+              setSaveMessage(`Auto-saved previous sequence annotations`);
+              setTimeout(() => setSaveMessage(null), 3000);
+            }
+          } catch (err) {
+            console.error('Auto-save failed:', err);
+          } finally {
+            setSavingAnnotations(false);
+          }
+        }
+      };
+      saveForPreviousSequence();
+    }
+    prevSequenceRef.current = currentSequence;
+  }, [currentSequence, autosaveAnnotations]);
 
   // Add keyboard shortcuts for sequence navigation
   useEffect(() => {
@@ -237,6 +308,52 @@ const Sidebar: React.FC<SidebarProps> = ({
           />
           Show Annotations
         </label>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">
+          <input
+            type="checkbox"
+            checked={autosaveAnnotations}
+            onChange={(e) => onAutosaveAnnotationsChange(e.target.checked)}
+            style={{ marginRight: '8px' }}
+          />
+          Autosave annotations on sequence change
+        </label>
+      </div>
+
+      <div className="form-group">
+        <button
+          onClick={handleSaveAnnotations}
+          disabled={savingAnnotations || !currentSequence.annotation_suffix}
+          className="save-button"
+          style={{
+            padding: '8px 16px',
+            backgroundColor: savingAnnotations ? '#ccc' : '#007acc',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: savingAnnotations || !currentSequence.annotation_suffix ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            width: '100%'
+          }}
+        >
+          {savingAnnotations ? 'Saving...' : 'Save Annotations'}
+        </button>
+        {saveMessage && (
+          <div style={{
+            marginTop: '8px',
+            padding: '6px',
+            fontSize: '12px',
+            borderRadius: '4px',
+            backgroundColor: saveMessage.startsWith('Error') ? '#ffebee' : '#e8f5e8',
+            color: saveMessage.startsWith('Error') ? '#c62828' : '#2e7d32',
+            border: `1px solid ${saveMessage.startsWith('Error') ? '#ffcdd2' : '#c8e6c9'}`
+          }}>
+            {saveMessage}
+          </div>
+        )}
       </div>
 
       <h3>Plot Configuration</h3>

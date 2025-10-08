@@ -178,6 +178,7 @@ def timeseries_options():
     camera = request.args.get("camera")
     mm = media_manager_cache.get(videoset_name, camera)
     options = get_timeseries_options(mm)
+    options = [x for x in options if 'temp' not in x]
     return jsonify(options)
 
 
@@ -190,6 +191,8 @@ def get_timeseries_data():
     z_column = request.args.get("z_column")
 
     df = timeseries_cache.get(videoset_name, camera, timeseries_name)
+    if df is None:
+        return jsonify({"error": "Timeseries not found"}), 404
 
     data = {"x": df["timestamp"].tolist()}
     if y_column and y_column in df.columns:
@@ -207,6 +210,8 @@ def get_column_options():
     timeseries_name = request.args.get("timeseries_name")
     mm = media_manager_cache.get(videoset_name, camera)
     df = mm.load(timeseries_name)
+    if df is None:
+        return jsonify({"error": "Timeseries not found"}), 404
     return jsonify(df.columns.tolist())
 
 
@@ -253,11 +258,19 @@ def get_annotations():
 @app.route("/annotation_at_timestamp", methods=["GET"])
 def get_annotation_at_timestamp():
     videoset_name = request.args.get("videoset_name")
-    camera = request.args.get("camera")
+    camera = str(request.args.get("camera"))
     annotation_suffix = request.args.get("annotation_suffix")
     timestamp = request.args.get("timestamp", type=float)
+    
+    # check if there are tmp annotations
+    tmp_filename = f"./data/tmp_annotations/{videoset_name}/{camera.replace('/', '___')}_{annotation_suffix}/{timestamp}.csv"
+    if Path(tmp_filename).exists():
+        df = pd.read_csv(tmp_filename)
+        data = df.to_dict("records")
+        return jsonify(data)
 
     mm = media_manager_cache.get(videoset_name, camera)
+    assert mm is not None, f"MediaManager not found for {videoset_name} {camera}"
     df = mm.load_annotations(annotation_suffix)
 
     # Filter by timestamp
@@ -277,7 +290,7 @@ def save_annotations_at_timestamp():
     videoset_name = data.get("videoset_name")
     camera = data.get("camera")
     annotation_suffix = data.get("annotation_suffix")
-    timestamp = data.get("timestamp", type=float)
+    timestamp = float(data.get("timestamp"))
     annotations = data.get("annotations", [])
     filename = f"./data/tmp_annotations/{videoset_name}/{camera.replace('/', '___')}_{annotation_suffix}/{timestamp}.csv"
     Path(filename).parent.mkdir(parents=True, exist_ok=True)
@@ -318,6 +331,9 @@ def save_annotations():
         )
         annotations_path.parent.mkdir(parents=True, exist_ok=True)
         new_annotations.to_csv(annotations_path, index=False)
+        # remove tmp annotations
+        for csv_file in tmp_dir.glob("*.csv"):
+            csv_file.unlink()
         if old_annotations is not None:
             return jsonify(
                 {"success": True, "num_kept": 0, "num_created": len(new_annotations)}
@@ -340,6 +356,7 @@ def get_timeseries_at_timestamp():
     camera = request.args.get("camera")
     timeseries_name = request.args.get("timeseries_name")
     timestamp = request.args.get("timestamp", type=float)
+    assert timeseries_name is not None, "timeseries_name is required"
     df = timeseries_cache.get(videoset_name, camera, timeseries_name)
     assert df is not None, f"{timeseries_name} not found for {videoset_name} {camera}"
     data = df[df["timestamp"] == timestamp].to_dict("records")
@@ -395,4 +412,4 @@ def annotation_options(videoset, camera):
 
 
 if __name__ == "__main__":
-    app.run(debug=False)
+    app.run(debug=True)

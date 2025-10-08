@@ -164,6 +164,42 @@ class ApiClient {
     return this.request<Record<string, unknown>[]>(`/annotation_at_timestamp?${params}`);
   }
 
+  // Save annotations at timestamp
+  async saveAnnotationsAtTimestamp(
+    videosetName: string,
+    camera: string,
+    annotationSuffix: string,
+    timestamp: number,
+    annotations: Record<string, unknown>[]
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.request<{ success: boolean }>('/save_annotations_at_timestamp', {
+      method: 'POST',
+      body: JSON.stringify({
+        videoset_name: videosetName,
+        camera,
+        annotation_suffix: annotationSuffix,
+        timestamp,
+        annotations
+      }),
+    });
+  }
+
+  // Save all annotations
+  async saveAnnotations(
+    videosetName: string,
+    camera: string,
+    annotationSuffix: string
+  ): Promise<ApiResponse<{ success: boolean; num_kept: number; num_created: number }>> {
+    return this.request<{ success: boolean; num_kept: number; num_created: number }>('/save_annotations', {
+      method: 'POST',
+      body: JSON.stringify({
+        videoset_name: videosetName,
+        camera,
+        annotation_suffix: annotationSuffix
+      }),
+    });
+  }
+
   // Timeseries at timestamp
   async getTimeseriesAtTimestamp(
     videosetName: string,
@@ -218,6 +254,10 @@ export const getAnnotationAtTimestamp = (videosetName: string, camera: string, a
   apiClient.getAnnotationAtTimestamp(videosetName, camera, annotationSuffix, timestamp, yColumn);
 export const getTimeseriesAtTimestamp = (videosetName: string, camera: string, timeseriesName: string, timestamp: number) =>
   apiClient.getTimeseriesAtTimestamp(videosetName, camera, timeseriesName, timestamp);
+export const saveAnnotationsAtTimestamp = (videosetName: string, camera: string, annotationSuffix: string, timestamp: number, annotations: Record<string, unknown>[]) =>
+  apiClient.saveAnnotationsAtTimestamp(videosetName, camera, annotationSuffix, timestamp, annotations);
+export const saveAnnotations = (videosetName: string, camera: string, annotationSuffix: string) =>
+  apiClient.saveAnnotations(videosetName, camera, annotationSuffix);
 export const getSubsets = () => apiClient.getSubsets();
 export const getSubset = (name: string) => apiClient.getSubset(name);
 export const saveSubset = (name: string, data: Sequence[]) => apiClient.saveSubset(name, data);

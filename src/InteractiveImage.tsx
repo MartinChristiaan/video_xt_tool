@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { MouseEvent } from 'react';
-import { fetchFrameSize, getTimeseriesAtTimestamp, getFrameUrl, getAnnotationAtTimestamp } from './api';
+import { fetchFrameSize, getTimeseriesAtTimestamp, getFrameUrl, getAnnotationAtTimestamp, saveAnnotationsAtTimestamp } from './api';
 import { zValueToColor, getZRange, defaultBoxColors, getContrastingTextColor } from './colorUtils';
 import './InteractiveImage.css';
 export interface Box {
@@ -48,8 +48,6 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
   // Calculate z-value ranges for color mapping
   const allZValues = [
     ...detectionBoxes.map(box => getBoxZValue(box, zColumn)),
-    ...allBoxes.map(box => getBoxZValue(box, zColumn)),
-    ...(annotations?.z || [])
   ].filter((z): z is number => z != null);
 
   const { min: zMin, max: zMax } = getZRange(allZValues);
@@ -81,10 +79,36 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     }
   }, [videoset, camera, timestamp, timeseriesName, zColumn]);
 
+  const saveCurrentAnnotations = useCallback(async (currentBoxes: Box[]) => {
+    if (!annotationSuffix) return;
+    
+    // Filter only manual and annotation type boxes for saving
+    const boxesToSave = currentBoxes.filter(box => box.type === 'manual' || box.type === 'annotation');
+    
+    // Convert boxes to the format expected by the API
+    const annotationsData = boxesToSave.map(box => ({
+      bbox_x: (box.bbox_x - x_offset/scale_factor) , 
+      bbox_y: (box.bbox_y  - y_offset/scale_factor),
+      bbox_w: box.bbox_w ,
+      bbox_h: box.bbox_h ,
+      label: box.label,
+      timestamp: timestamp,
+    }));
+
+    try {
+      const result = await saveAnnotationsAtTimestamp(videoset, camera, annotationSuffix, timestamp, annotationsData);
+      if (result.error) {
+        console.error("Error saving annotations:", result.error);
+      }
+    } catch (error) {
+      console.error("Error saving annotations:", error);
+    }
+  }, [videoset, camera, annotationSuffix, timestamp, zColumn]);
+
   const loadAnnotationBoxes = useCallback(async () => {
     if (!annotationSuffix || !showAnnotations) {
       // Remove existing annotation boxes from the unified state
-      setAllBoxes(prevBoxes => prevBoxes.filter(box => box.type !== 'annotation'));
+      setAllBoxes([]);
       return;
     }
 
@@ -99,14 +123,13 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
           bbox_h: (annotation.bbox_h as number) || 10,
           label: (annotation.label as string) || `Ann${index + 1}`,
           type: 'annotation',
-          id: `annotation-${timestamp}-${index}`
+          id: `annotation-${timestamp}-${index}`,
+          ...(zColumn && annotation.hasOwnProperty(zColumn) ? { [zColumn]: annotation[zColumn] } : {})
         }));
         
         // Replace annotation boxes in the unified state
-        setAllBoxes(prevBoxes => [
-          ...prevBoxes.filter(box => box.type !== 'annotation'),
-          ...annotationBoxes
-        ]);
+        setAllBoxes(annotationBoxes
+        );
       } else {
         // Remove existing annotation boxes if no data
         setAllBoxes(prevBoxes => prevBoxes.filter(box => box.type !== 'annotation'));
@@ -228,7 +251,12 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
     // No additional scaling needed since getCoordinates() already handles scale_factor
 
     if (finalBox.bbox_w > 5 && finalBox.bbox_h > 5) { // Minimum size check
-        setAllBoxes(prevBoxes => [...prevBoxes, finalBox]);
+        setAllBoxes(prevBoxes => {
+          const newBoxes = [...prevBoxes, finalBox];
+          // Automatically save annotations when a new box is added
+          saveCurrentAnnotations(newBoxes);
+          return newBoxes;
+        });
     }
 
     setIsDrawing(false);
@@ -237,7 +265,12 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
 
   const handleRemoveBox = (e: React.MouseEvent, boxId: string) => {
     e.preventDefault();
-    setAllBoxes(prevBoxes => prevBoxes.filter(box => box.id !== boxId));
+    setAllBoxes(prevBoxes => {
+      const newBoxes = prevBoxes.filter(box => box.id !== boxId);
+      // Automatically save annotations when a box is removed
+      saveCurrentAnnotations(newBoxes);
+      return newBoxes;
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -247,7 +280,10 @@ const InteractiveImage: React.FC<InteractiveImageProps> = ({ selectedLabel,times
         const editableBoxes = prevBoxes.filter(box => box.type === 'manual' || box.type === 'annotation');
         if (editableBoxes.length > 0) {
           const lastBox = editableBoxes[editableBoxes.length - 1];
-          return prevBoxes.filter(box => box.id !== lastBox.id);
+          const newBoxes = prevBoxes.filter(box => box.id !== lastBox.id);
+          // Automatically save annotations when a box is removed
+          saveCurrentAnnotations(newBoxes);
+          return newBoxes;
         }
         return prevBoxes;
       });

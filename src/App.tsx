@@ -9,7 +9,7 @@ import './App.css';
 
 export default function App() {
   const [selectedTimestamp, setSelectedTimestamp] = useState<number>(0);
-  const [subsetName, setSubsetName] = useState<string>('Leusderheide');
+  const [subsetName, setSubsetName] = useState<string>('store_data_filtered');
   const [subset, setSubset] = useState<Sequence[] | null>(null);
   const [subsetIndex, setSubsetIndex] = useState<number>(0);
   const [availableSubsets, setAvailableSubsets] = useState<string[]>([]);
@@ -24,6 +24,7 @@ export default function App() {
   // Annotation state
   const [annotations, setAnnotations] = useState<AnnotationsResponse | null>(null);
   const [showAnnotations, setShowAnnotations] = useState<boolean>(true);
+  const [autosaveAnnotations, setAutosaveAnnotations] = useState<boolean>(false);
 
   // Load available subsets on component mount
   useEffect(() => {
@@ -174,6 +175,10 @@ export default function App() {
     setShowAnnotations(show);
   };
 
+  const handleAutosaveAnnotationsChange = (autosave: boolean) => {
+    setAutosaveAnnotations(autosave);
+  };
+
   // Keyboard shortcuts for timestamp navigation
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     // Only handle keys when not typing in an input field
@@ -281,6 +286,8 @@ export default function App() {
         // Annotation-related props
         showAnnotations={showAnnotations}
         onShowAnnotationsChange={handleShowAnnotationsChange}
+        autosaveAnnotations={autosaveAnnotations}
+        onAutosaveAnnotationsChange={handleAutosaveAnnotationsChange}
       />
       <div className="content">
         <div className="image-container">
